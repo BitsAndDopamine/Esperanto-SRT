@@ -1,0 +1,14 @@
+# Runtime dependencies.
+# For a smaller CPU-only install, install torch from the CPU index first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# then: pip install -r requirements.txt
+torch>=2.2
+nemo_toolkit[asr]>=2.0
+soundfile>=0.12
+scipy>=1.10
+numpy>=1.24
+huggingface_hub>=0.20
+
+# Test dependencies
+pytest>=8
+lameenc>=1.4
