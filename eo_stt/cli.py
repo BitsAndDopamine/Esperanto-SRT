@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from .transcribe import transcribe_file
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(
         prog="eo-stt-cli",
         description="Transcribe Esperanto audio (mp3/wav/ogg/flac) to .srt subtitles.",
@@ -35,8 +37,12 @@ def main(argv: list[str] | None = None) -> int:
     model = load_model(args.model, device=args.device)
     for path in args.inputs:
         print(f"Transcribing {path} …", flush=True)
-        out = transcribe_file(model, path, args.output_dir)
-        print(f"  -> {out}", flush=True)
+
+        def _progress(done: int, total: int) -> None:
+            print(f"\r  {done}/{total} chunks ({done * 100 // total}%)", end="", flush=True)
+
+        out = transcribe_file(model, path, args.output_dir, on_progress=_progress)
+        print(f"\r  -> {out}")
     return 0
 
 

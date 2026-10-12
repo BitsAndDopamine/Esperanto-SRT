@@ -32,12 +32,14 @@ CLI:
 .venv/bin/eo-stt-cli episode.mp3 more.mp3 -o subtitles/
 ```
 
-Writes `episode.srt` next to each input (or into the `-o` directory). Accepted input formats: mp3, wav, ogg, flac, m4a.
+Writes `episode.srt` next to each input (or into the `-o` directory). Accepted input formats: mp3, wav, ogg, flac (m4a/aac only when ffmpeg is installed). Both the GUI and the CLI show chunk-level progress, so long files don't look stuck.
+
+On CPU, inference runs at roughly 10× realtime (a 48-minute podcast takes ~4–5 minutes); with a CUDA GPU it is much faster.
 
 ## How it works
 
 1. Audio is decoded and resampled to 16 kHz mono (`eo_stt/audio.py`).
-2. Long files are transcribed in 30 s chunks with NeMo (`eo_stt/model.py`).
+2. Long files are transcribed in 30 s chunks with NeMo, 4 chunks per inference batch (`eo_stt/model.py`). Audio is passed to NeMo as numpy arrays (in-process, no worker processes).
 3. The transcript is split into timed subtitle blocks and written as srt (`eo_stt/srt.py`, `eo_stt/transcribe.py`).
 
 Note: the model outputs **lowercase text without punctuation** — the srt text is passed through as-is.

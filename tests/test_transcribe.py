@@ -6,15 +6,24 @@ from eo_stt.transcribe import srt_path_for, transcribe_file, transcribe_to_segme
 
 
 class StubModel:
-    """Mimics the NeMo model's transcribe() without needing the checkpoint."""
+    """Mimics the NeMo model's transcribe(): one result per input array."""
 
     def __init__(self, text="saluton mondo"):
         self.text = text
         self.calls = []
 
-    def transcribe(self, paths, **kwargs):
-        self.calls.append(paths)
-        return [self.text]
+    def transcribe(self, arrays, **kwargs):
+        self.calls.append(list(arrays))
+        return [self.text for _ in arrays]
+
+
+class BatchFlakyModel(StubModel):
+    """Fails on multi-array batches, forcing the per-chunk fallback."""
+
+    def transcribe(self, arrays, **kwargs):
+        if len(arrays) > 1:
+            raise RuntimeError("simulated batch failure")
+        return super().transcribe(arrays, **kwargs)
 
 
 def _write_silence(path, seconds, sr=16000):
@@ -26,7 +35,7 @@ def test_transcribe_to_segments(tmp_path):
     wav = _write_silence(tmp_path / "a.wav", 5.0)
     model = StubModel()
     segs = transcribe_to_segments(model, wav)
-    assert len(model.calls) == 1
+    assert len(model.calls) == 1  # one batch for one chunk
     assert segs
     assert segs[0].start == 0.0
     assert segs[-1].end == pytest.approx(5.0)
@@ -37,13 +46,36 @@ def test_transcribe_chunks_long_file(tmp_path):
     wav = _write_silence(tmp_path / "long.wav", 65.0)  # -> 30s + 30s + 5s chunks
     model = StubModel()
     segs = transcribe_to_segments(model, wav)
-    assert len(model.calls) == 3
+    assert sum(len(c) for c in model.calls) == 3  # all 3 chunks were sent
     assert segs[0].start == 0.0
     assert segs[-1].end == pytest.approx(65.0)
     # chunk boundaries at 30s and 60s
     starts = sorted({round(s.start, 3) for s in segs})
     assert any(29.0 < s < 31.0 for s in starts)
     assert any(59.0 < s < 61.0 for s in starts)
+
+
+def test_transcribe_chunks_batches(tmp_path):
+    wav = _write_silence(tmp_path / "long.wav", 250.0)  # 9 chunks -> 3 batches of 4/4/1
+    model = StubModel()
+    transcribe_to_segments(model, wav)
+    assert [len(c) for c in model.calls] == [4, 4, 1]
+
+
+def test_transcribe_chunks_falls_back_to_single_chunks(tmp_path):
+    wav = _write_silence(tmp_path / "long.wav", 65.0)  # 3 chunks
+    model = BatchFlakyModel()
+    segs = transcribe_to_segments(model, wav)
+    assert len(model.calls) == 3  # batch failed -> 3 individual calls
+    assert all(len(c) == 1 for c in model.calls)
+    assert segs[-1].end == pytest.approx(65.0)
+
+
+def test_on_progress(tmp_path):
+    wav = _write_silence(tmp_path / "long.wav", 65.0)  # 3 chunks
+    calls = []
+    transcribe_to_segments(StubModel(), wav, on_progress=lambda d, t: calls.append((d, t)))
+    assert calls == [(1, 3), (2, 3), (3, 3)]
 
 
 def test_transcribe_file_writes_srt(tmp_path):

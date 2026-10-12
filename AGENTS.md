@@ -14,8 +14,13 @@ Stack (decided): **Python** + NVIDIA NeMo + PyTorch, **Tkinter** GUI (stdlib, ze
 - Load: `nemo_asr.models.EncDecCTCModelBPE.from_pretrained("nvidia/stt_eo_conformer_ctc_large")` — the **BPE** variant (SentencePiece, vocab 128), not plain `EncDecCTCModel`.
 - **Input: 16 kHz mono.** mp3/wav/ogg/flac decoding + resampling lives in `eo_stt/audio.py` (soundfile + scipy).
 - **Output: lowercase Esperanto text with spaces and apostrophes — no capitalization, no punctuation.** The srt text is passed through as-is (decided: no post-processing).
-- **Word timestamps**: `model.transcribe(paths, timestamps=True)` returns Hypothesis objects with `.timestamp['word']` = list of `{"word", "start", "end"}` (seconds; NeMo converts frames→seconds itself). Used for srt blocks in `eo_stt/srt.py::segments_from_words`. Fallback if unavailable: `proportional_segments`.
-- Long audio is transcribed in **30 s chunks** (`CHUNK_SECONDS` in `eo_stt/model.py`) — bounded memory on CPU.
+- **Word timestamps**: `model.transcribe(arrays, timestamps=True)` returns Hypothesis objects with `.timestamp['word']` = list of `{"word", "start", "end"}` (seconds; NeMo converts frames→seconds itself). Used for srt blocks in `eo_stt/srt.py::segments_from_words`. Fallback if unavailable: `proportional_segments`.
+- Long audio is transcribed in **30 s chunks** (`CHUNK_SECONDS` in `eo_stt/model.py`), **4 chunks per `model.transcribe` call** (`BATCH_CHUNKS`) — bounded memory on CPU, amortized dataloader setup.
+- **Pass audio to NeMo as numpy arrays, never as file paths.** The file-path route goes through a Lhotse manifest dataloader that spawns worker processes per call — that broke in the GUI's worker thread (root cause of the "only the first ~56 s transcribed" bug: chunks after the first came back empty). The tensor route (`_transcribe_arrays` in `eo_stt/model.py`) is in-process (`num_workers=0`), no temp files, no Lhotse.
+- If a batched call fails, `transcribe_chunks` retries that batch one chunk per call (isolation).
+- Progress: `on_progress(done, total)` callback → CLI prints chunk %, GUI progress bar reflects chunk progress within each file.
+- `transcribe_to_segments` logs a **warning if the srt would cover < 50% of a > 60 s file** (catches partial-failure runs like the one above).
+- Speed on CPU: ~11× realtime → a 48 min podcast takes ~4–5 min (verified on fremdulo.mp3); GPU is much faster.
 - The `.nemo` checkpoint (~500 MB) downloads on first run into the Hugging Face cache (`~/.cache/huggingface`). **Never commit it** (`.gitignore` covers `*.nemo`).
 
 ## Environment / setup (verified on this machine)
@@ -55,12 +60,16 @@ Output `.srt` goes next to the input (same stem) or into `-o` dir. Accepted inpu
 - `lameenc` API is `lameenc.Encoder()` (set_bit_rate/set_in_sample_rate/…), there is no `lameenc.encode()`.
 - Model output is lowercase without punctuation — don't "fix" it in code; it's the model's raw output.
 - Hard 30 s chunking has no overlap: a word straddling a chunk boundary can come out garbled/duplicated (seen e2e as `esperantoo`). Acceptable tradeoff; adding overlap+dedup is the fix if it bothers users.
-- The GUI has **not been run on a display** on this machine (headless, no X) — only import-tested. The CLI shares the same `transcribe_file` path, which is e2e-verified.
-- GUI must stay cross-platform: no shell-outs, no Linux-only paths; all file dialogs via tkinter.
+- **Don't route audio through NeMo's file-path/Lhotse path** (see above) — it silently returned empty transcripts for all but the first ~2 chunks when run from the GUI thread. If a future NeMo upgrade tempts you to pass paths again, re-test the GUI on a > 5 min file first.
+- The GUI has **not been run on a display** on this machine (headless, no X) — import-tested, and the worker-thread code path is tested headlessly with the real model. The CLI shares the same `transcribe_file` path, which is e2e-verified.
+- GUI must stay cross-platform: no shell-outs, no Linux-only paths; all file dialogs via tkinter. m4a/aac is NOT in the GUI's file picker (no bundled decoder; needs ffmpeg fallback).
 
 ## Verified end-to-end (Oct 2026, CPU)
 
-Real Esperanto speech (Wikimedia Commons, CC BY-SA 4.0, "Mi estas komencanto de esperanto", 3.3 s mp3) → `eo-stt-cli sentence.mp3` → correct transcript `mi estas komencanto de esperanto` with word-aligned timing (0.6–2.88 s). A 44 s file exercised the 2-chunk path (6 srt blocks, chunk boundary at 30 s respected). ~44 s of audio transcribes in ~5 s of inference on this CPU.
+- Real Esperanto speech (Wikimedia Commons, CC BY-SA 4.0, "Mi estas komencanto de esperanto", 3.3 s mp3) → correct transcript with word-aligned timing (0.6–2.88 s).
+- **Full 48-min podcast** (`fremdulo.mp3`, user's file, 2894.6 s) → `eo-stt-cli` → 498 srt blocks, coverage 10.6 s → 2894.5 s (full file), only 4 natural silence gaps. Runs in ~5 min on CPU.
+- The same file via the **old file-path/Lhotse route in a GUI worker thread** produced only the first ~56 s (8 blocks) — reproduced the user's bug; the tensor-route fix eliminates it (thread path re-verified headlessly with the real model).
+- Accepted inputs tested: mp3 (CBR/VBR, 44.1 kHz mono), wav, ogg.
 
 ## Workspace context
 

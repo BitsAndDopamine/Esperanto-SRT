@@ -8,6 +8,7 @@ through a queue (Tk is not thread-safe).
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import tkinter as tk
@@ -18,7 +19,21 @@ from tkinter.scrolledtext import ScrolledText
 from .model import MODEL_ID, load_model
 from .transcribe import transcribe_file
 
-AUDIO_TYPES = [("Audio files", "*.mp3 *.wav *.ogg *.flac *.m4a"), ("All files", "*.*")]
+AUDIO_TYPES = [("Audio files", "*.mp3 *.wav *.ogg *.flac"), ("All files", "*.*")]
+
+
+class _QueueHandler(logging.Handler):
+    """Forward eo_stt log records into the GUI event queue (worker thread safe)."""
+
+    def __init__(self, events: queue.Queue) -> None:
+        super().__init__()
+        self._events = events
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._events.put(("log", self.format(record)))
+        except Exception:
+            pass
 
 
 class App(tk.Tk):
@@ -29,6 +44,9 @@ class App(tk.Tk):
         self._events: queue.Queue = queue.Queue()
         self._worker: threading.Thread | None = None
         self._files: list[Path] = []
+        logger = logging.getLogger("eo_stt")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(_QueueHandler(self._events))
         self._build()
         self.after(100, self._poll)
 
@@ -110,13 +128,20 @@ class App(tk.Tk):
     def _work(self) -> None:
         files = list(self._files)
         out_dir = self._out_var.get().strip() or None
+        n_files = len(files)
         try:
             self._events.put(("log", f"Loading model {MODEL_ID} (first run downloads ~500 MB)…"))
             model = load_model()
             for i, f in enumerate(files, 1):
-                self._events.put(("progress", (i - 1) / len(files) * 100))
-                self._events.put(("log", f"[{i}/{len(files)}] {f.name} …"))
-                out = transcribe_file(model, f, out_dir)
+                self._events.put(("progress", (i - 1) / n_files * 100))
+                self._events.put(("log", f"[{i}/{n_files}] {f.name} …"))
+                base = (i - 1) / n_files * 100
+                step = 100 / n_files
+
+                def on_progress(done: int, total: int, base: float = base, step: float = step) -> None:
+                    self._events.put(("progress", base + step * done / total))
+
+                out = transcribe_file(model, f, out_dir, on_progress=on_progress)
                 self._events.put(("log", f"    wrote {out}"))
             self._events.put(("progress", 100))
             self._events.put(("log", "Done."))
