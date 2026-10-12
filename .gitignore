@@ -6,3 +6,6 @@ __pycache__/
 build/
 dist/
 *.nemo
+
+# generated subtitles (tool output, not source)
+*.srt

@@ -33,10 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         parser.error(f"no such file(s): {', '.join(str(p) for p in missing)}")
 
-    print(f"Loading model {args.model} (first run downloads ~500 MB)…", flush=True)
+    print(f"Loading model {args.model} (first run downloads ~500 MB)...", flush=True)
     model = load_model(args.model, device=args.device)
     for path in args.inputs:
-        print(f"Transcribing {path} …", flush=True)
+        print(f"Transcribing {path} ...", flush=True)
 
         def _progress(done: int, total: int) -> None:
             print(f"\r  {done}/{total} chunks ({done * 100 // total}%)", end="", flush=True)

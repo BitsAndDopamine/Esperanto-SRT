@@ -37,7 +37,7 @@ Stack (decided): **Python** + NVIDIA NeMo + PyTorch, **Tkinter** GUI (stdlib, ze
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest                 # tests (22, no model download needed)
+.venv/bin/python -m pytest                 # tests (27, no model download needed)
 .venv/bin/python -m eo_stt                 # GUI (needs a display)
 .venv/bin/eo-stt-cli FILE.mp3 [...] -o OUT_DIR   # CLI, one .srt per input
 ```
@@ -61,7 +61,8 @@ Output `.srt` goes next to the input (same stem) or into `-o` dir. Accepted inpu
 - Model output is lowercase without punctuation — don't "fix" it in code; it's the model's raw output.
 - Hard 30 s chunking has no overlap: a word straddling a chunk boundary can come out garbled/duplicated (seen e2e as `esperantoo`). Acceptable tradeoff; adding overlap+dedup is the fix if it bothers users.
 - **Don't route audio through NeMo's file-path/Lhotse path** (see above) — it silently returned empty transcripts for all but the first ~2 chunks when run from the GUI thread. If a future NeMo upgrade tempts you to pass paths again, re-test the GUI on a > 5 min file first.
-- The GUI has **not been run on a display** on this machine (headless, no X) — import-tested, and the worker-thread code path is tested headlessly with the real model. The CLI shares the same `transcribe_file` path, which is e2e-verified.
+- **All GUI/CLI strings must be ASCII** — enforced by `tests/test_ui_strings.py`. Tk's default font here is Latin-1-only "Nimbus Sans L", which garbles `…`, `→`, `—` and the Esperanto diacritics (ĉĝĥĵŝŭ) in *widget* text (window titles are WM-rendered and looked fine — misleading). `_setup_fonts()` in `gui.py` switches widget fonts to a Unicode-capable family (DejaVu Sans first) so Esperanto *file names* render; app strings stay ASCII regardless. Windows consoles can also fail to encode non-ASCII prints — another reason the CLI is ASCII-only.
+- The GUI **has been visually verified on this machine's display** (screenshots: buttons, listbox with a diacritic file name `ĉeĥa-ĝojo ŝido.mp3`). The transcription button itself was not clicked in the GUI, but the worker-thread code path is tested headlessly with the real model, and the CLI shares the same `transcribe_file` path (e2e-verified).
 - GUI must stay cross-platform: no shell-outs, no Linux-only paths; all file dialogs via tkinter. m4a/aac is NOT in the GUI's file picker (no bundled decoder; needs ffmpeg fallback).
 
 ## Verified end-to-end (Oct 2026, CPU)
