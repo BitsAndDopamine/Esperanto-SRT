@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import logging
 import queue
+import shutil
+import subprocess
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -23,6 +26,54 @@ from .model import MODEL_ID, load_model
 from .transcribe import transcribe_file
 
 AUDIO_TYPES = [("Audio files", "*.mp3 *.wav *.ogg *.flac"), ("All files", "*.*")]
+
+
+def _zenity_path() -> str | None:
+    """Path to zenity (the native GNOME file selector) on Linux, else None."""
+    if sys.platform.startswith("linux"):
+        return shutil.which("zenity")
+    return None
+
+
+def _ask_open_filenames(title: str) -> list[Path]:
+    """Pick audio files with the OS-native selector.
+
+    Linux/GNOME: zenity (the native GTK file dialog) when installed.
+    Windows/macOS: tkinter's filedialog (already the native OS dialog).
+    Linux without zenity: tkinter's Tk dialog (fallback).
+    """
+    zenity = _zenity_path()
+    if zenity:
+        proc = subprocess.run(
+            [
+                zenity, "--file-selection", "--multiple",
+                "--separator", "\n",
+                f"--title={title}",
+                "--file-filter=Audio files | *.mp3 *.wav *.ogg *.flac",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            return [Path(p) for p in proc.stdout.splitlines() if p.strip()]
+        return []  # user cancelled
+    paths = filedialog.askopenfilenames(title=title, filetypes=AUDIO_TYPES)
+    return [Path(p) for p in paths]
+
+
+def _ask_directory(title: str) -> str:
+    """Pick a folder with the OS-native selector (same fallback chain)."""
+    zenity = _zenity_path()
+    if zenity:
+        proc = subprocess.run(
+            [zenity, "--file-selection", "--directory", f"--title={title}"],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+        return ""  # user cancelled
+    return filedialog.askdirectory(title=title)
 
 
 class _QueueHandler(logging.Handler):
@@ -75,34 +126,38 @@ class App(ctk.CTk):
 
     def _build(self) -> None:
         pad = {"padx": 10, "pady": 6}
+        # corner_radius=0 everywhere: on some systems (this machine's
+        # Linux/Xwayland + Tk) CTk's rounded corners render as jagged notches.
+        # Sharp rectangles render cleanly.
+        cr = {"corner_radius": 0}
 
-        top = ctk.CTkFrame(self, fg_color="transparent")
+        top = ctk.CTkFrame(self, fg_color="transparent", **cr)
         top.pack(fill="both", expand=True, **pad)
-        self._list_frame = ctk.CTkScrollableFrame(top)
+        self._list_frame = ctk.CTkScrollableFrame(top, **cr)
         self._list_frame.pack(side="left", fill="both", expand=True)
         self._placeholder = ctk.CTkLabel(self._list_frame, text="(no files yet)", anchor="w")
         self._placeholder.pack(fill="x", pady=2)
-        btns = ctk.CTkFrame(top, fg_color="transparent")
+        btns = ctk.CTkFrame(top, fg_color="transparent", **cr)
         btns.pack(side="left", fill="y", padx=(8, 0))
-        ctk.CTkButton(btns, text="Add files...", command=self._add_files).pack(fill="x", pady=2)
-        ctk.CTkButton(btns, text="Clear", command=self._clear_files).pack(fill="x", pady=2)
+        ctk.CTkButton(btns, text="Add files...", command=self._add_files, **cr).pack(fill="x", pady=2)
+        ctk.CTkButton(btns, text="Clear", command=self._clear_files, **cr).pack(fill="x", pady=2)
 
-        out = ctk.CTkFrame(self, fg_color="transparent")
+        out = ctk.CTkFrame(self, fg_color="transparent", **cr)
         out.pack(fill="x", **pad)
         ctk.CTkLabel(out, text="Output folder:").pack(side="left")
         self._out_var = tk.StringVar()
-        ctk.CTkEntry(out, textvariable=self._out_var).pack(side="left", fill="x", expand=True, padx=6)
-        ctk.CTkButton(out, text="Browse...", command=self._browse_out).pack(side="left")
+        ctk.CTkEntry(out, textvariable=self._out_var, **cr).pack(side="left", fill="x", expand=True, padx=6)
+        ctk.CTkButton(out, text="Browse...", command=self._browse_out, **cr).pack(side="left")
 
-        run = ctk.CTkFrame(self, fg_color="transparent")
+        run = ctk.CTkFrame(self, fg_color="transparent", **cr)
         run.pack(fill="x", **pad)
-        self._run_btn = ctk.CTkButton(run, text="Transcribe -> .srt", command=self._start)
+        self._run_btn = ctk.CTkButton(run, text="Transcribe -> .srt", command=self._start, **cr)
         self._run_btn.pack(side="left")
-        self._progress = ctk.CTkProgressBar(run)
+        self._progress = ctk.CTkProgressBar(run, **cr)
         self._progress.pack(side="left", fill="x", expand=True, padx=10)
         self._progress.set(0)
 
-        self._log = ctk.CTkTextbox(self, state="disabled")
+        self._log = ctk.CTkTextbox(self, state="disabled", **cr)
         self._log.pack(fill="both", expand=True, **pad)
 
     # -- widget helpers ---------------------------------------------------
@@ -114,15 +169,16 @@ class App(ctk.CTk):
         self._log.configure(state="disabled")
 
     def _add_files(self) -> None:
-        paths = filedialog.askopenfilenames(parent=self, title="Choose audio files", filetypes=AUDIO_TYPES)
-        for p in paths:
-            path = Path(p)
+        for path in _ask_open_filenames("Choose audio files"):
             if path in self._rows:
                 continue
-            row = ctk.CTkFrame(self._list_frame, fg_color="transparent")
+            row = ctk.CTkFrame(self._list_frame, fg_color="transparent", corner_radius=0)
             row.pack(fill="x", pady=1)
             ctk.CTkLabel(row, text=path.name, anchor="w").pack(side="left", fill="x", expand=True)
-            ctk.CTkButton(row, text="x", width=30, command=lambda p=path: self._remove_file(p)).pack(side="right")
+            ctk.CTkButton(
+                row, text="x", width=28, height=28, corner_radius=0,
+                command=lambda p=path: self._remove_file(p),
+            ).pack(side="right", padx=2)
             self._rows[path] = row
             self._files.append(path)
         if self._files:
@@ -147,7 +203,7 @@ class App(ctk.CTk):
         self._placeholder.pack(fill="x", pady=2)
 
     def _browse_out(self) -> None:
-        directory = filedialog.askdirectory(parent=self, title="Choose output folder")
+        directory = _ask_directory("Choose output folder")
         if directory:
             self._out_var.set(directory)
 
