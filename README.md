@@ -44,6 +44,20 @@ On CPU, inference runs at roughly 10× realtime (a 48-minute podcast takes ~4–
 
 Note: the model outputs **lowercase text without punctuation** — the srt text is passed through as-is.
 
+## Portable builds (standalone executable)
+
+Build a self-contained app with PyInstaller — no Python needed on the target machine:
+
+```bash
+.venv/bin/python build.py          # -> dist/eo-stt/ (folder, ~1.5-3 GB)
+```
+
+- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-stt fremdulo.mp3 -o out/`.
+- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux, Windows and macOS artifacts on every `v*` tag (`.github/workflows/build.yml`).
+- The bundle uses **CPU-only PyTorch** (no CUDA); inference is ~10x realtime on a CPU.
+- The ASR model (~500 MB) is **not bundled** — it downloads to the Hugging Face cache on first run (`~/.cache/huggingface`; `%USERPROFILE%\.cache\huggingface` on Windows). To run fully offline, run the app once with internet access, or copy `stt_eo_conformer_ctc_large.nemo` into that cache.
+- Prefer the default **onedir** build; `--onefile` re-extracts the whole bundle on every start (slow).
+
 ## Development
 
 ```bash

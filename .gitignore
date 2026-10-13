@@ -9,3 +9,6 @@ dist/
 
 # generated subtitles (tool output, not source)
 *.srt
+
+# PyInstaller byproduct (build.py is the source of truth)
+*.spec

@@ -72,6 +72,17 @@ Output `.srt` goes next to the input (same stem) or into `-o` dir. Accepted inpu
 - The same file via the **old file-path/Lhotse route in a GUI worker thread** produced only the first ~56 s (8 blocks) — reproduced the user's bug; the tensor-route fix eliminates it (thread path re-verified headlessly with the real model).
 - Accepted inputs tested: mp3 (CBR/VBR, 44.1 kHz mono), wav, ogg.
 
+## Portable builds (PyInstaller)
+
+- `build.py` builds a standalone app for **this OS only** (PyInstaller cannot cross-compile): `.venv/bin/python build.py` → `dist/eo-stt/` (onedir, ~1.5-3 GB — torch+NeMo are big; CPU-only torch, no CUDA).
+- The exe: **no args → GUI; with args → CLI** (`eo-stt FILE.mp3 -o OUT_DIR`). Entry point is root `main.py` (kept outside the package for PyInstaller).
+- `.github/workflows/build.yml` builds Linux/Windows/macOS zips on `v*` tags and attaches them to a GitHub release. CI uses python.org Python (bundles Tk 8.6 — see font note).
+- The model (~500 MB) is **never bundled**; first run downloads it to the HF cache.
+- PyInstaller flags that matter (in `build.py`): `--collect-all` for customtkinter/nemo/lhotse/soundfile/miniaudio/sentencepiece/tokenizers/safetensors/omegaconf/hydra/huggingface_hub (assets + natives + no official hooks), `--copy-metadata` for nemo_toolkit etc., excludes for unused nemo collections (tts/nlp/vision — verified not imported by the ASR path; pandas IS imported, keep it).
+- **Frozen-app startup crashes fixed (verified)**: (1) do NOT `--exclude-module unittest`/`pydoc` — `numpy.testing` imports unittest and the frozen app died without it; (2) `--collect-all cuda` — nemo's cuda utils import `cuda.bindings` compiled modules; (3) `--collect-all lightning_fabric` + `pytorch_lightning` — their `__version__.py` reads a package-local `version.info` file at import time.
+- Verified build (Linux, Oct 2026): `dist/eo-stt/` = **1.5 GB** (exe 95 MB + `_internal/` 1.4 GB). Frozen CLI transcribes correctly (sentence.mp3 → right srt in ~15 s incl. startup; long.mp3 → 2/2 chunks); frozen GUI launches (dark CTk window).
+- GUI is **CustomTkinter** (dark mode). Caveat: on this machine's Linux/Xwayland, Tk named fonts only resolve core X11 fonts, so CTk's TrueType fonts render as the bitmap "fixed" font (pixelated text; diacritics still show). Cosmetic only — user said fonts are not a priority. On Windows/macOS (native font backends) CTk renders properly.
+
 ## Workspace context
 
 - `../vocx` (Go) is the inverse tool: Esperanto text → phonetic Polish for TTS engines. Same domain (Esperanto audio tooling), independent stack — not a dependency.

@@ -1,9 +1,11 @@
-"""Tkinter GUI (Linux + Windows, stdlib only).
+"""CustomTkinter GUI (Linux + Windows + macOS, dark mode).
 
-Run with: python -m eo_stt
+Run with: python -m eo_stt   (or the PyInstaller executable with no arguments)
 
 All transcription happens in a worker thread; the GUI only receives events
-through a queue (Tk is not thread-safe).
+through a queue (Tk is not thread-safe). All widget/log strings are ASCII,
+enforced by tests/test_ui_strings.py (Tk/console fonts are not guaranteed to
+have non-ASCII glyphs).
 """
 
 from __future__ import annotations
@@ -13,46 +15,14 @@ import queue
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
-from tkinter.scrolledtext import ScrolledText
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
 
 from .model import MODEL_ID, load_model
 from .transcribe import transcribe_file
 
 AUDIO_TYPES = [("Audio files", "*.mp3 *.wav *.ogg *.flac"), ("All files", "*.*")]
-
-# All widget/log strings must stay ASCII: Tk's default font is not guaranteed to
-# have non-ASCII glyphs (see _setup_fonts), and Windows consoles choke on them.
-
-
-def _setup_fonts(root: tk.Tk) -> None:
-    """Use a Unicode-capable font for all widgets.
-
-    Tk's default font on some Linux systems is a Latin-1-only clone (e.g.
-    "Nimbus Sans L") that lacks the glyphs for Esperanto diacritics (c^, g^, h^,
-    j^, s^, u^) and characters like the ellipsis, arrow and em dash; Tk then
-    renders them as boxes. File names shown
-    in the listbox/log need those glyphs, so pick a font with wide coverage.
-    """
-    from tkinter import font as tkfont
-
-    families = set(tkfont.families(root))
-    sans = next((f for f in ("DejaVu Sans", "Noto Sans", "Liberation Sans", "Segoe UI", "Arial", "Helvetica")
-                 if f in families), None)
-    mono = next((f for f in ("DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono", "Consolas",
-                             "Courier New", "Courier") if f in families), None)
-    for name, family in (
-        ("TkDefaultFont", sans),
-        ("TkTextFont", sans),
-        ("TkMenuFont", sans),
-        ("TkHeadingFont", sans),
-        ("TkFixedFont", mono),
-    ):
-        if family:
-            try:
-                tkfont.nametofont(name, root).configure(family=family)
-            except tk.TclError:
-                pass
 
 
 class _QueueHandler(logging.Handler):
@@ -69,49 +39,70 @@ class _QueueHandler(logging.Handler):
             pass
 
 
-class App(tk.Tk):
+def _default_font_family(root: tk.Misc) -> str:
+    """Pick a font family the OS definitely has, for all CustomTkinter widgets.
+
+    CTk's default family is its bundled "Roboto", which on Linux is only copied
+    to ~/.fonts (fontconfig may not see it without a cache refresh) and is not
+    installed on macOS at all; Tk then falls back to an ugly bitmap font. All
+    candidates below cover the Esperanto diacritics (c^, g^, h^, j^, s^, u^).
+    """
+    from tkinter import font as tkfont
+
+    families = set(tkfont.families(root))
+    for family in ("DejaVu Sans", "Noto Sans", "Liberation Sans", "Segoe UI", "Helvetica", "Roboto", "Arial"):
+        if family in families:
+            return family
+    return "Roboto"  # CTk's own default
+
+
+class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title("eo-stt - Esperanto speech-to-text (mp3 -> srt)")
-        self.minsize(640, 420)
+        self.geometry("760x560")
+        self.minsize(680, 460)
+        ctk.ThemeManager.theme["CTkFont"]["family"] = _default_font_family(self)
         self._events: queue.Queue = queue.Queue()
         self._worker: threading.Thread | None = None
         self._files: list[Path] = []
+        self._rows: dict[Path, ctk.CTkFrame] = {}
         logger = logging.getLogger("eo_stt")
         logger.setLevel(logging.INFO)
         logger.addHandler(_QueueHandler(self._events))
-        _setup_fonts(self)
         self._build()
         self.after(100, self._poll)
 
     def _build(self) -> None:
-        pad = {"padx": 8, "pady": 4}
+        pad = {"padx": 10, "pady": 6}
 
-        top = ttk.Frame(self)
-        top.pack(fill="x", **pad)
-        self._listbox = tk.Listbox(top, selectmode="extended", height=6)
-        self._listbox.pack(side="left", fill="both", expand=True)
-        btns = ttk.Frame(top)
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(fill="both", expand=True, **pad)
+        self._list_frame = ctk.CTkScrollableFrame(top)
+        self._list_frame.pack(side="left", fill="both", expand=True)
+        self._placeholder = ctk.CTkLabel(self._list_frame, text="(no files yet)", anchor="w")
+        self._placeholder.pack(fill="x", pady=2)
+        btns = ctk.CTkFrame(top, fg_color="transparent")
         btns.pack(side="left", fill="y", padx=(8, 0))
-        ttk.Button(btns, text="Add files...", command=self._add_files).pack(fill="x", pady=2)
-        ttk.Button(btns, text="Remove selected", command=self._remove_selected).pack(fill="x", pady=2)
-        ttk.Button(btns, text="Clear", command=self._clear_files).pack(fill="x", pady=2)
+        ctk.CTkButton(btns, text="Add files...", command=self._add_files).pack(fill="x", pady=2)
+        ctk.CTkButton(btns, text="Clear", command=self._clear_files).pack(fill="x", pady=2)
 
-        out = ttk.Frame(self)
+        out = ctk.CTkFrame(self, fg_color="transparent")
         out.pack(fill="x", **pad)
-        ttk.Label(out, text="Output folder:").pack(side="left")
+        ctk.CTkLabel(out, text="Output folder:").pack(side="left")
         self._out_var = tk.StringVar()
-        ttk.Entry(out, textvariable=self._out_var).pack(side="left", fill="x", expand=True, padx=4)
-        ttk.Button(out, text="Browse...", command=self._browse_out).pack(side="left")
+        ctk.CTkEntry(out, textvariable=self._out_var).pack(side="left", fill="x", expand=True, padx=6)
+        ctk.CTkButton(out, text="Browse...", command=self._browse_out).pack(side="left")
 
-        run = ttk.Frame(self)
+        run = ctk.CTkFrame(self, fg_color="transparent")
         run.pack(fill="x", **pad)
-        self._run_btn = ttk.Button(run, text="Transcribe -> .srt", command=self._start)
+        self._run_btn = ctk.CTkButton(run, text="Transcribe -> .srt", command=self._start)
         self._run_btn.pack(side="left")
-        self._progress = ttk.Progressbar(run, mode="determinate", maximum=100)
-        self._progress.pack(side="left", fill="x", expand=True, padx=8)
+        self._progress = ctk.CTkProgressBar(run)
+        self._progress.pack(side="left", fill="x", expand=True, padx=10)
+        self._progress.set(0)
 
-        self._log = ScrolledText(self, height=12, state="disabled")
+        self._log = ctk.CTkTextbox(self, state="disabled")
         self._log.pack(fill="both", expand=True, **pad)
 
     # -- widget helpers ---------------------------------------------------
@@ -123,26 +114,40 @@ class App(tk.Tk):
         self._log.configure(state="disabled")
 
     def _add_files(self) -> None:
-        paths = filedialog.askopenfilenames(title="Choose audio files", filetypes=AUDIO_TYPES)
+        paths = filedialog.askopenfilenames(parent=self, title="Choose audio files", filetypes=AUDIO_TYPES)
         for p in paths:
             path = Path(p)
-            if path not in self._files:
-                self._files.append(path)
-                self._listbox.insert("end", path.name)
+            if path in self._rows:
+                continue
+            row = ctk.CTkFrame(self._list_frame, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+            ctk.CTkLabel(row, text=path.name, anchor="w").pack(side="left", fill="x", expand=True)
+            ctk.CTkButton(row, text="x", width=30, command=lambda p=path: self._remove_file(p)).pack(side="right")
+            self._rows[path] = row
+            self._files.append(path)
+        if self._files:
+            self._placeholder.pack_forget()
         if self._files and not self._out_var.get():
             self._out_var.set(str(self._files[0].parent))
 
-    def _remove_selected(self) -> None:
-        for i in reversed(self._listbox.curselection()):
-            self._listbox.delete(i)
-            del self._files[i]
+    def _remove_file(self, path: Path) -> None:
+        row = self._rows.pop(path, None)
+        if row is not None:
+            row.destroy()
+        if path in self._files:
+            self._files.remove(path)
+        if not self._files:
+            self._placeholder.pack(fill="x", pady=2)
 
     def _clear_files(self) -> None:
-        self._listbox.delete(0, "end")
+        for row in self._rows.values():
+            row.destroy()
+        self._rows.clear()
         self._files.clear()
+        self._placeholder.pack(fill="x", pady=2)
 
     def _browse_out(self) -> None:
-        directory = filedialog.askdirectory(title="Choose output folder")
+        directory = filedialog.askdirectory(parent=self, title="Choose output folder")
         if directory:
             self._out_var.set(directory)
 
@@ -155,7 +160,7 @@ class App(tk.Tk):
             messagebox.showinfo("eo-stt", "Add at least one audio file first.")
             return
         self._run_btn.configure(state="disabled")
-        self._progress["value"] = 0
+        self._progress.set(0)
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
 
@@ -192,7 +197,7 @@ class App(tk.Tk):
                 if kind == "log":
                     self._append_log(payload)
                 elif kind == "progress":
-                    self._progress["value"] = payload
+                    self._progress.set(payload / 100)
                 elif kind == "done":
                     messagebox.showinfo("eo-stt", "All files transcribed.")
                 elif kind == "error":
@@ -205,6 +210,8 @@ class App(tk.Tk):
 
 
 def main() -> None:
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
     App().mainloop()
 
 
