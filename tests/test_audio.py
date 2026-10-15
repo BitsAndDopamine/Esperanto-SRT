@@ -1,7 +1,10 @@
+import subprocess
+
 import numpy as np
 import pytest
 import soundfile as sf
 
+import eo_stt.audio as audio
 from eo_stt.audio import TARGET_SAMPLE_RATE, audio_info, load_audio
 
 
@@ -87,3 +90,25 @@ def test_load_audio_long_file_blocked_resample(tmp_path):
     x = load_audio(p)
     assert abs(len(x) / TARGET_SAMPLE_RATE - 30.0) < 0.1
     assert np.isfinite(x).all()
+
+
+def test_ffmpeg_fallback_child_env_is_clean(tmp_path, monkeypatch):
+    # a frozen build's bootloader points LD_LIBRARY_PATH at the bundled
+    # _internal/ libraries; the ffmpeg child must not inherit that (see
+    # eo_stt.subprocess_env)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/frozen/_internal")
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs)
+        sf.write(cmd[-1], np.zeros(TARGET_SAMPLE_RATE, dtype=np.float32), TARGET_SAMPLE_RATE)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(audio.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(audio.subprocess, "run", fake_run)
+    data, sr = audio._read_with_ffmpeg(tmp_path / "x.m4a")
+    assert sr == TARGET_SAMPLE_RATE
+    assert len(data) == TARGET_SAMPLE_RATE
+    env = seen.get("env", {})
+    assert "LD_LIBRARY_PATH" not in env
+    assert "PATH" in env  # the rest of the environment is preserved

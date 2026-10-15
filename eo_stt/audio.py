@@ -23,6 +23,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from . import subprocess_env
+
 TARGET_SAMPLE_RATE = 16000
 
 
@@ -117,6 +119,7 @@ def _read_with_ffmpeg(path: Path) -> tuple[np.ndarray, int]:
             [ffmpeg, "-y", "-i", str(path), "-ac", "1", "-ar", str(TARGET_SAMPLE_RATE), out],
             check=True,
             capture_output=True,
+            env=subprocess_env(),  # no LD_LIBRARY_PATH from a frozen build (see eo_stt.subprocess_env)
         )
         data, sr = sf.read(out, dtype="float32", always_2d=True)
         return data, sr

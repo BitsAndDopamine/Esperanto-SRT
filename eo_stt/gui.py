@@ -27,6 +27,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
+from . import subprocess_env
 from .model import load_model
 from .transcribe import srt_path_for, transcribe_file
 
@@ -40,29 +41,57 @@ def _zenity_path() -> str | None:
     return None
 
 
+def _run_zenity(zenity: str, args: list[str]) -> subprocess.CompletedProcess | None:
+    """Run zenity with a clean environment (see eo_stt.subprocess_env).
+
+    Returns None when zenity could not be started at all (OSError).
+    """
+    try:
+        return subprocess.run(
+            [zenity, *args],
+            capture_output=True,
+            text=True,
+            env=subprocess_env(),
+        )
+    except OSError as exc:
+        logging.getLogger("eo_stt").warning("zenity ne povis starti: %s", exc)
+        return None
+
+
 def _ask_open_filenames(title: str) -> list[Path]:
     """Pick audio files with the OS-native selector.
 
     Linux/GNOME: zenity (the native GTK file dialog) when installed.
     Windows/macOS: tkinter's filedialog (already the native OS dialog).
-    Linux without zenity: tkinter's Tk dialog (fallback).
+    Linux without zenity (or when zenity fails): tkinter's Tk dialog.
     """
     zenity = _zenity_path()
     if zenity:
-        proc = subprocess.run(
+        proc = _run_zenity(
+            zenity,
             [
-                zenity, "--file-selection", "--multiple",
+                "--file-selection", "--multiple",
                 "--separator", "\n",
                 f"--title={title}",
                 "--file-filter=aŭdiaj dosieroj | *.mp3 *.wav *.ogg *.flac",
             ],
-            capture_output=True,
-            text=True,
         )
-        if proc.returncode == 0:
-            return [Path(p) for p in proc.stdout.splitlines() if p.strip()]
-        return []  # user cancelled
-    paths = filedialog.askopenfilenames(title=title, filetypes=AUDIO_TYPES)
+        if proc is not None:
+            if proc.returncode == 0:
+                return [Path(p) for p in proc.stdout.splitlines() if p.strip()]
+            if proc.returncode == 1:
+                return []  # user cancelled
+            # any other exit code is a failure, not a cancel: say so and
+            # fall back to the Tk dialog instead of silently doing nothing
+            logging.getLogger("eo_stt").warning(
+                "zenity malsukcesis (elirkodo %s): %s",
+                proc.returncode, proc.stderr.strip() or "neniu detalo",
+            )
+    try:
+        paths = filedialog.askopenfilenames(title=title, filetypes=AUDIO_TYPES)
+    except tk.TclError as exc:
+        messagebox.showerror("eo-stt - eraro", f"ne eblas malfermi la dosier-elektilon:\n{exc}")
+        return []
     return [Path(p) for p in paths]
 
 
@@ -70,15 +99,21 @@ def _ask_directory(title: str) -> str:
     """Pick a folder with the OS-native selector (same fallback chain)."""
     zenity = _zenity_path()
     if zenity:
-        proc = subprocess.run(
-            [zenity, "--file-selection", "--directory", f"--title={title}"],
-            capture_output=True,
-            text=True,
-        )
-        if proc.returncode == 0:
-            return proc.stdout.strip()
-        return ""  # user cancelled
-    return filedialog.askdirectory(title=title)
+        proc = _run_zenity(zenity, ["--file-selection", "--directory", f"--title={title}"])
+        if proc is not None:
+            if proc.returncode == 0:
+                return proc.stdout.strip()
+            if proc.returncode == 1:
+                return ""  # user cancelled
+            logging.getLogger("eo_stt").warning(
+                "zenity malsukcesis (elirkodo %s): %s",
+                proc.returncode, proc.stderr.strip() or "neniu detalo",
+            )
+    try:
+        return filedialog.askdirectory(title=title)
+    except tk.TclError as exc:
+        messagebox.showerror("eo-stt - eraro", f"ne eblas malfermi la dosieruj-elektilon:\n{exc}")
+        return ""
 
 
 class _QueueHandler(logging.Handler):
