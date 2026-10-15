@@ -5,6 +5,10 @@ Esperanto speech-to-text: turn mp3 audio into `.srt` subtitle files, with a smal
 
 Uses the INT8 ONNX export of NVIDIA's Esperanto Conformer-Transducer Large model ([OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx](https://huggingface.co/OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx), converted from `nvidia/stt_eo_conformer_transducer_large`, license CC-BY-4.0) via [onnx-asr](https://github.com/istupakov/onnx-asr) + ONNX Runtime. No PyTorch, NeMo or CUDA involved.
 
+Special thanks to all the contributors of the [Esperanto Dataset of the Common Voice Project](https://commonvoice.mozilla.org/eo) that made this possible. 
+
+## Screenshots
+
 ![eo-stt GUI](ekrankopio1.png)
 ![srt preview window](ekrankopio1-srt.png)
 
