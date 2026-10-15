@@ -98,3 +98,44 @@ def test_transcribe_file_output_dir(tmp_path):
 def test_srt_path_for():
     assert srt_path_for("/tmp/x/episode.mp3") == srt_path_for("/tmp/x/episode.mp3").parent / "episode.srt"
     assert srt_path_for("/tmp/x/episode.mp3", "/tmp/out") == srt_path_for("/tmp/out/episode.srt")
+
+
+def test_srt_file_grows_during_transcription(tmp_path):
+    """The .srt must exist from the start and grow while transcription runs."""
+    wav = _write_silence(tmp_path / "long.wav", 250.0)  # 9 chunks -> 3 batches
+    out_dir = tmp_path / "out"
+    srt = out_dir / "long.srt"
+    snapshots = []
+
+    class ProbingModel(StubModel):
+        def transcribe(self, arrays, **kwargs):
+            # snapshot the file at every model call (i.e. while it is running)
+            snapshots.append(srt.read_text(encoding="utf-8") if srt.exists() else None)
+            return super().transcribe(arrays, **kwargs)
+
+    out = transcribe_file(ProbingModel(), wav, out_dir)
+    assert out == srt
+    # the file existed already at the first model call (created up front)...
+    assert snapshots[0] is not None
+    # ...and grew monotonically with every batch
+    for prev, cur in zip(snapshots, snapshots[1:]):
+        assert cur is not None
+        assert cur.startswith(prev)
+    final = srt.read_text(encoding="utf-8")
+    assert final.startswith(snapshots[-1])
+    # 3 batches -> the file gained new content at least twice during the run
+    assert len([s for s in snapshots if s]) >= 2
+    # block numbering is sequential across the whole file
+    assert final.count("\n\n") >= 9
+
+
+def test_transcribe_file_empty_transcript_raises_and_leaves_no_file(tmp_path):
+    wav = _write_silence(tmp_path / "a.wav", 2.0)
+
+    class SilentModel:
+        def transcribe(self, arrays, **kwargs):
+            return ["" for _ in arrays]
+
+    with pytest.raises(ValueError, match="no segments"):
+        transcribe_file(SilentModel(), wav)
+    assert not (tmp_path / "a.srt").exists()  # no empty file left behind

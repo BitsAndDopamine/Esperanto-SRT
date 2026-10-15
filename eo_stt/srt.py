@@ -127,6 +127,13 @@ def _enforce_min_duration(segments: list[Segment], minimum: float = MIN_BLOCK_SE
                 nxt.start += need
 
 
+def format_block(index: int, seg: Segment) -> list[str]:
+    """One srt block as lines: index, timestamp line, wrapped text."""
+    lines = [str(index), f"{format_timestamp(seg.start)} --> {format_timestamp(seg.end)}"]
+    lines.extend(textwrap.wrap(seg.text, MAX_LINE_CHARS) or [""])
+    return lines
+
+
 def write_srt(segments: list[Segment], path: str | Path) -> Path:
     """Write segments to an .srt file (UTF-8). Returns the path."""
     if not segments:
@@ -134,9 +141,39 @@ def write_srt(segments: list[Segment], path: str | Path) -> Path:
     path = Path(path)
     lines: list[str] = []
     for i, seg in enumerate(segments, 1):
-        lines.append(str(i))
-        lines.append(f"{format_timestamp(seg.start)} --> {format_timestamp(seg.end)}")
-        lines.extend(textwrap.wrap(seg.text, MAX_LINE_CHARS) or [""])
+        lines.extend(format_block(i, seg))
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
+
+
+class SrtWriter:
+    """Incrementally write an .srt file as segments arrive.
+
+    The file is created (truncated) immediately; blocks are appended and
+    flushed as they are produced, so the .srt can be opened and read while
+    the transcription that produces it is still running.
+    """
+
+    def __init__(self, path: str | Path):
+        self._path = Path(path)
+        self._fh = self._path.open("w", encoding="utf-8")
+        self._index = 0
+
+    def append(self, segments: list[Segment]) -> None:
+        """Append segments as new blocks (numbered sequentially)."""
+        for seg in segments:
+            self._index += 1
+            self._fh.write("\n".join(format_block(self._index, seg)))
+            self._fh.write("\n\n")
+        if segments:
+            self._fh.flush()
+
+    def close(self) -> None:
+        self._fh.close()
+
+    def __enter__(self) -> "SrtWriter":
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.close()

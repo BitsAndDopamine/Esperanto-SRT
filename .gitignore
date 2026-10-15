@@ -7,8 +7,14 @@ build/
 dist/
 *.nemo
 
+# downloaded INT8 model cache (fetch_model.py; bundled into the build, never committed)
+models/
+
 # generated subtitles (tool output, not source)
 *.srt
+
+# local test audio (too large for git; tests synthesize their own mp3)
+*.mp3
 
 # PyInstaller byproduct (build.py is the source of truth)
 *.spec

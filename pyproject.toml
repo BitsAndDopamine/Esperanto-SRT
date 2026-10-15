@@ -7,14 +7,14 @@ name = "eo-stt"
 version = "0.1.0"
 description = "Esperanto speech-to-text: mp3 audio to .srt subtitles, with a GUI (Linux/Windows)"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 dependencies = [
-    "torch>=2.2",
-    "nemo_toolkit[asr]>=2.0",
-    "soundfile>=0.12",
-    "scipy>=1.10",
+    # CPU-only ONNX inference (INT8 model, loaded from local files — no torch/NeMo/CUDA).
+    # onnxruntime pins mirror onnx-asr's "cpu" extra.
+    "onnxruntime>=1.18.1,!=1.24.1,!=1.25.*,!=1.26.0",
+    "onnx-asr>=0.12",
     "numpy>=1.24",
-    "huggingface_hub>=0.20",
+    "soundfile>=0.12",
     "customtkinter>=5.2",
 ]
 

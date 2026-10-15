@@ -52,3 +52,38 @@ def test_load_audio_mp3(tmp_path):
     assert x.ndim == 1
     # mp3 adds encoder delay/padding — allow generous tolerance
     assert abs(len(x) / TARGET_SAMPLE_RATE - 2.0) < 0.25
+
+
+def test_load_audio_resamples_common_rates(tmp_path):
+    # 48 kHz (down), 22.05 kHz (down), 8 kHz (up) — all must land on 16 kHz mono
+    for sr in (48000, 22050, 8000):
+        p = _write_wav(tmp_path / f"a{sr}.wav", sr=sr, seconds=1.5, channels=1)
+        x = load_audio(p)
+        assert x.ndim == 1 and x.dtype == np.float32
+        assert abs(len(x) / TARGET_SAMPLE_RATE - 1.5) < 0.05, sr
+
+
+def test_load_audio_resample_antialiases(tmp_path):
+    # 6 kHz tone (passband) + 12 kHz tone (above the 16 kHz Nyquist, would
+    # alias to 4 kHz without an anti-alias filter) — the alias must be weak
+    sr = 44100
+    t = np.arange(int(sr * 1.0)) / sr
+    sig = (0.5 * np.sin(2 * np.pi * 6000.0 * t) + 0.5 * np.sin(2 * np.pi * 12000.0 * t)).astype(np.float32)
+    p = tmp_path / "tone.wav"
+    sf.write(str(p), sig, sr)
+    x = load_audio(p)
+
+    def power_at(freq):
+        seg = x[1600:-1600]
+        n = np.arange(len(seg))
+        return abs(np.dot(seg, np.exp(-2j * np.pi * freq * n / TARGET_SAMPLE_RATE))) ** 2 / len(seg)
+
+    assert power_at(6000.0) > 100 * power_at(4000.0)  # > 20 dB alias rejection
+
+
+def test_load_audio_long_file_blocked_resample(tmp_path):
+    # > 65536 output samples exercises the blocked polyphase path
+    p = _write_wav(tmp_path / "long.wav", sr=44100, seconds=30.0, channels=1)
+    x = load_audio(p)
+    assert abs(len(x) / TARGET_SAMPLE_RATE - 30.0) < 0.1
+    assert np.isfinite(x).all()

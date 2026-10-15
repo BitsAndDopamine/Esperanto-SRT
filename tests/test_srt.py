@@ -3,6 +3,8 @@ import pytest
 from eo_stt.srt import (
     MAX_BLOCK_CHARS,
     Segment,
+    SrtWriter,
+    format_block,
     format_timestamp,
     proportional_segments,
     segments_from_words,
@@ -108,3 +110,37 @@ def test_write_srt_wraps_long_lines(tmp_path):
 def test_write_srt_empty_raises(tmp_path):
     with pytest.raises(ValueError):
         write_srt([], tmp_path / "x.srt")
+
+
+def test_format_block():
+    assert format_block(1, Segment(0.0, 1.5, "saluton")) == [
+        "1", "00:00:00,000 --> 00:00:01,500", "saluton",
+    ]
+
+
+def test_srt_writer_creates_file_immediately_and_appends(tmp_path):
+    out = tmp_path / "x.srt"
+    with SrtWriter(out) as w:
+        assert out.exists()  # created up front, before any segment arrives
+        assert out.read_text(encoding="utf-8") == ""
+        w.append([Segment(0.0, 1.5, "saluton")])
+        w.append([Segment(1.5, 3.0, "mondo"), Segment(3.0, 4.0, "kiel vi")])
+    assert out.read_text(encoding="utf-8") == (
+        "1\n00:00:00,000 --> 00:00:01,500\nsaluton\n\n"
+        "2\n00:00:01,500 --> 00:00:03,000\nmondo\n\n"
+        "3\n00:00:03,000 --> 00:00:04,000\nkiel vi\n\n"
+    )
+
+
+def test_srt_writer_blocks_match_write_srt(tmp_path):
+    # the incremental writer and write_srt must produce the same blocks
+    segs = [Segment(0.0, 1.5, "saluton"), Segment(1.5, 3.0, "mondo")]
+    incremental = tmp_path / "inc.srt"
+    with SrtWriter(incremental) as w:
+        w.append(segs[:1])
+        w.append(segs[1:])
+    final = tmp_path / "final.srt"
+    write_srt(segs, final)
+    inc_text = incremental.read_text(encoding="utf-8")
+    final_text = final.read_text(encoding="utf-8")
+    assert inc_text.rstrip("\n") == final_text.rstrip("\n")

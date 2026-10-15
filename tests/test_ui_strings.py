@@ -1,24 +1,37 @@
-"""Guard against non-ASCII UI strings.
+"""Guard for user-facing UI strings.
 
-Tk's default font is not guaranteed to have non-ASCII glyphs (on this machine
-it is Latin-1-only "Nimbus Sans L", which garbles …, →, — and the Esperanto
-diacritics), and Windows consoles can fail to encode them. All user-facing
-strings in gui.py/cli.py must therefore stay ASCII. Transcript text itself is
-Esperanto and lives only in the .srt files (UTF-8), never in widgets.
+- cli.py must stay pure ASCII: Windows consoles can fail to encode non-ASCII
+  prints.
+- gui.py is Esperanto with proper diacritics (ĉĝĥĵŝŭ and capitals). Tk's font
+  fallback renders them (CTk widgets via the theme font, plain-Tk dialogs via
+  the reconfigured named fonts — see _default_font_family/_setup_tk_fonts in
+  gui.py), but anything beyond the Esperanto letters could garble, so only
+  those are allowed.
+
+Transcript text itself is Esperanto and lives only in the .srt files (UTF-8),
+never in widgets.
 """
 
 from pathlib import Path
 
-import pytest
+ROOT = Path(__file__).resolve().parent.parent
+CLI_SOURCE = ROOT / "eo_stt" / "cli.py"
+GUI_SOURCE = ROOT / "eo_stt" / "gui.py"
 
-UI_SOURCES = [
-    Path(__file__).resolve().parent.parent / "eo_stt" / "gui.py",
-    Path(__file__).resolve().parent.parent / "eo_stt" / "cli.py",
-]
+# the only non-ASCII characters allowed in gui.py
+ESPERANTO_LETTERS = set("ĉĝĥĵŝŭĈĜĤĴŜŬ")
 
 
-@pytest.mark.parametrize("path", UI_SOURCES, ids=lambda p: p.name)
-def test_ui_source_is_ascii(path):
-    text = path.read_text(encoding="utf-8")
+def test_cli_source_is_ascii():
+    text = CLI_SOURCE.read_text(encoding="utf-8")
     non_ascii = sorted({ch for ch in text if ord(ch) > 127})
-    assert not non_ascii, f"{path.name} contains non-ASCII characters: {non_ascii!r}"
+    assert not non_ascii, f"cli.py contains non-ASCII characters: {non_ascii!r}"
+
+
+def test_gui_source_only_esperanto_diacritics():
+    text = GUI_SOURCE.read_text(encoding="utf-8")
+    bad = sorted({ch for ch in text if ord(ch) > 127 and ch not in ESPERANTO_LETTERS})
+    assert not bad, (
+        f"gui.py contains non-ASCII characters beyond the Esperanto diacritics "
+        f"{sorted(ESPERANTO_LETTERS)!r}: {bad!r}"
+    )
