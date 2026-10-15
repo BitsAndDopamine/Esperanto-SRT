@@ -8,6 +8,13 @@ Uses the INT8 ONNX export of NVIDIA's Esperanto Conformer-Transducer Large model
 ![eo-stt GUI](ekrankopio1.png)
 ![srt preview window](ekrankopio1-srt.png)
 
+##  Downloads
+
+| Artifact | Platform |
+|---|---|
+| [eo-stt-v0.1.1-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.1.1/eo-stt-v0.1.1-linux.tar.gz) | Linux (x86_64) |
+| [eo-stt-v0.1.1-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.1.1/eo-stt-v0.1.1-windows.zip) | Windows (x64) |
+
 ## Install
 
 Requires **Python 3.10+**.
