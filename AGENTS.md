@@ -9,6 +9,7 @@ Stack: **Python** + ONNX Runtime (CPU) + onnx-asr, **Tkinter/CustomTkinter** GUI
 ## The model (decided — don't swap without discussion)
 
 - INT8 ONNX export of NVIDIA's Esperanto **Conformer-Transducer Large** (~120M params): HF repo `OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx` (license CC-BY-4.0), converted from `nvidia/stt_eo_conformer_transducer_large`.
+- **License**: the **code** is CC0 (`LICENSE`); the bundled **model** files stay CC-BY-4.0 (HF repo above) — keep the model's attribution in the README when redistributing.
 - **INT8 files only**: `encoder-model.int8.onnx` (~131 MB), `decoder_joint-model.int8.onnx` (~4 MB), plus `config.json` and `vocab.txt`. Total ~142 MB. The fp32 variants are never downloaded.
 - **Loaded locally, always.** `fetch_model.py` downloads the pinned HF commit (`11e3daa…`, sha256-verified) into `models/nvidia-eo-conformer-transducer-large-onnx-int8/` at BUILD time. The app never downloads anything at runtime. `eo_stt/model.py::default_model_dir()` resolves the model dir: `$EO_STT_MODEL_DIR` → frozen: `<exe dir>/model` then `_MEIPASS/model` → source tree: `<repo>/models/<name>`.
 - **Backend: onnx-asr** (`onnx_asr.load_model(MODEL_ID, path=..., quantization="int8", providers=["CPUExecutionProvider"])`) + **onnxruntime CPU** (plain `onnxruntime` wheel, never `onnxruntime-gpu`). CPU-only: the `--device` CLI flag is accepted but ignored.

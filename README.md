@@ -113,3 +113,7 @@ Notes:
 ```
 
 The model files (~142 MB) are downloaded by `fetch_model.py` into `models/` (gitignored) and are never committed.
+
+## License
+
+The code is dedicated to the public domain under [CC0 1.0 Universal](LICENSE). The bundled ASR model is NVIDIA's Esperanto Conformer-Transducer Large via [OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx](https://huggingface.co/OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx), license **CC-BY-4.0** — keep its attribution notice when redistributing the app.
