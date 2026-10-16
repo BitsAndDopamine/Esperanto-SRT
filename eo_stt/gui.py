@@ -31,7 +31,22 @@ from . import subprocess_env
 from .model import load_model
 from .transcribe import srt_path_for, transcribe_file
 
-AUDIO_TYPES = [("aŭdiaj dosieroj", "*.mp3 *.wav *.ogg *.flac"), ("ĉiuj dosieroj", "*.*")]
+# File-type dropdown of the open dialog. The first entry (all audio formats,
+# preselected) is kept, and each supported format is listed separately so the
+# dropdown actually filters: some native dialogs mishandle one entry with
+# several patterns, and per-format entries let the user pick a single format.
+AUDIO_TYPES = [
+    ("aŭdiaj dosieroj", "*.mp3 *.wav *.ogg *.flac"),
+    ("mp3-dosieroj (*.mp3)", "*.mp3"),
+    ("wav-dosieroj (*.wav)", "*.wav"),
+    ("ogg-dosieroj (*.ogg)", "*.ogg"),
+    ("flac-dosieroj (*.flac)", "*.flac"),
+    ("ĉiuj dosieroj", "*"),
+]
+
+# Share of the progress bar reserved for loading the model. Loading the INT8
+# ONNX model takes a while on CPU, so it gets its own visible first step.
+MODEL_LOAD_SHARE = 0.05
 
 
 def _zenity_path() -> str | None:
@@ -67,13 +82,18 @@ def _ask_open_filenames(title: str) -> list[Path]:
     """
     zenity = _zenity_path()
     if zenity:
+        filters = [
+            f"--file-filter={label} | {patterns}"
+            for label, patterns in AUDIO_TYPES
+            if patterns != "*"  # GTK already offers its own "all files" filter
+        ]
         proc = _run_zenity(
             zenity,
             [
                 "--file-selection", "--multiple",
                 "--separator", "\n",
                 f"--title={title}",
-                "--file-filter=aŭdiaj dosieroj | *.mp3 *.wav *.ogg *.flac",
+                *filters,
             ],
         )
         if proc is not None:
@@ -247,11 +267,16 @@ class App(ctk.CTk):
 
         run = ctk.CTkFrame(self, fg_color="transparent", **cr)
         run.pack(fill="x", **pad)
-        self._run_btn = ctk.CTkButton(run, text="transskribu -> .srt", command=self._start, **cr)
+        bar_row = ctk.CTkFrame(run, fg_color="transparent", **cr)
+        bar_row.pack(fill="x")
+        self._run_btn = ctk.CTkButton(bar_row, text="transskribu -> .srt", command=self._start, **cr)
         self._run_btn.pack(side="left")
-        self._progress = ctk.CTkProgressBar(run, **cr)
+        self._progress = ctk.CTkProgressBar(bar_row, **cr)
         self._progress.pack(side="left", fill="x", expand=True, padx=10)
         self._progress.set(0)
+        # one-line status under the bar: what the app is doing right now
+        self._status = ctk.CTkLabel(run, text="", anchor="w", **cr)
+        self._status.pack(fill="x", pady=(2, 0))
 
         self._log = ctk.CTkTextbox(self, state="disabled", **cr)
         self._log.pack(fill="both", expand=True, **pad)
@@ -263,6 +288,9 @@ class App(ctk.CTk):
         self._log.insert("end", msg + "\n")
         self._log.see("end")
         self._log.configure(state="disabled")
+
+    def _set_status(self, text: str) -> None:
+        self._status.configure(text=text)
 
     def _add_files(self) -> None:
         for path in _ask_open_filenames("elektu aŭdiajn dosierojn"):
@@ -330,6 +358,12 @@ class App(ctk.CTk):
             return
         self._run_btn.configure(state="disabled")
         self._progress.set(0)
+        # Loading the model takes a while on CPU and the worker thread cannot
+        # report anything before it is done, so show activity right away:
+        # a busy animation on the bar plus a status line.
+        self._progress.start()
+        self._set_status("ŝargante modelon...")
+        self._append_log("preparante modelon (INT8 ONNX, CPU)...")
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
 
@@ -338,14 +372,19 @@ class App(ctk.CTk):
         out_dir = self._out_var.get().strip() or None
         n_files = len(files)
         try:
-            self._events.put(("log", "preparante modelon (INT8 ONNX, CPU)..."))
             model = load_model()
+            # the model is loaded: switch from the busy animation to real
+            # progress; the files share the remaining 95% of the bar
+            self._events.put(("model_loaded", MODEL_LOAD_SHARE * 100))
             last_out: Path | None = None
+            file_base = MODEL_LOAD_SHARE * 100
+            file_span = 100 - file_base
             for i, f in enumerate(files, 1):
-                self._events.put(("progress", (i - 1) / n_files * 100))
+                base = file_base + (i - 1) / n_files * file_span
+                step = file_span / n_files
+                self._events.put(("status", f"transskribas [{i}/{n_files}] {f.name}"))
+                self._events.put(("progress", base))
                 self._events.put(("log", f"[{i}/{n_files}] {f.name} ..."))
-                base = (i - 1) / n_files * 100
-                step = 100 / n_files
 
                 def on_progress(done: int, total: int, base: float = base, step: float = step) -> None:
                     self._events.put(("progress", base + step * done / total))
@@ -354,9 +393,11 @@ class App(ctk.CTk):
                 last_out = out
                 self._events.put(("log", f"    skribita: {out}"))
             self._events.put(("progress", 100))
+            self._events.put(("status", "farita."))
             self._events.put(("log", "farita."))
             self._events.put(("done", str(last_out) if last_out is not None else None))
         except Exception as exc:  # show any failure in the GUI
+            self._events.put(("status", "eraro"))
             self._events.put(("error", str(exc)))
         finally:
             self._events.put(("finished", None))
@@ -369,6 +410,12 @@ class App(ctk.CTk):
                     self._append_log(payload)
                 elif kind == "progress":
                     self._progress.set(payload / 100)
+                elif kind == "status":
+                    self._set_status(payload)
+                elif kind == "model_loaded":
+                    # model loading finished: busy animation -> real progress
+                    self._progress.stop()
+                    self._progress.set(payload / 100)
                 elif kind == "done":
                     # all files transcribed: open a preview of the last .srt
                     if payload:
@@ -376,6 +423,7 @@ class App(ctk.CTk):
                 elif kind == "error":
                     messagebox.showerror("eo-stt - eraro", payload)
                 elif kind == "finished":
+                    self._progress.stop()  # never leave the busy animation running
                     self._run_btn.configure(state="normal")
         except queue.Empty:
             pass
