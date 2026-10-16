@@ -120,6 +120,7 @@ Notes:
 - Windows Defender sometimes flags PyInstaller-built executables as a false positive; add an exclusion for the build folder if the exe gets quarantined.
 - `.venv\` and `models\` are only needed for building and can be deleted afterwards — `dist\eo-stt\` is self-contained.
 - The exe is built with a console window (it serves both the GUI and the CLI); double-clicking it opens the GUI plus a console window. This matches previous releases.
+- The bundle must not contain `ucrtbase.dll`: Windows 10/11 provide the UCRT as part of the OS, and a bundled copy makes the exe fail at startup ("Failed to load Python DLL"). `build.py` filters it out automatically.
 
 ## Development
 

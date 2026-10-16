@@ -21,25 +21,25 @@ def _fake_zenity(stdout="", returncode=0, stderr=""):
 
 
 def test_zenity_multiple_files_parsing():
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(stdout="/a/b.mp3\n/c/d.wav\n")):
         assert gui._ask_open_filenames("t") == [Path("/a/b.mp3"), Path("/c/d.wav")]
 
 
 def test_zenity_cancel_returns_empty():
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(stdout="", returncode=1)):
         assert gui._ask_open_filenames("t") == []
 
 
 def test_zenity_directory():
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(stdout="/some/dir\n")):
         assert gui._ask_directory("t") == "/some/dir"
 
 
 def test_zenity_directory_cancel_returns_empty():
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(stdout="", returncode=1)):
         assert gui._ask_directory("t") == ""
 
@@ -70,7 +70,7 @@ def test_no_zenity_on_windows_macos():
 
 def test_zenity_failure_falls_back_to_tkinter():
     # a crashing zenity (e.g. exit 127 = loader error) is a failure, not a cancel
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(returncode=127, stderr="symbol lookup error")), \
          mock.patch.object(gui.filedialog, "askopenfilenames", return_value=("/x.mp3",)) as dlg:
         assert gui._ask_open_filenames("t") == [Path("/x.mp3")]
@@ -78,7 +78,7 @@ def test_zenity_failure_falls_back_to_tkinter():
 
 
 def test_zenity_directory_failure_falls_back_to_tkinter():
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", _fake_zenity(returncode=127)), \
          mock.patch.object(gui.filedialog, "askdirectory", return_value="/out") as dlg:
         assert gui._ask_directory("t") == "/out"
@@ -89,7 +89,7 @@ def test_zenity_oserror_falls_back_to_tkinter():
     def boom(cmd, **kwargs):
         raise OSError("exec failed")
 
-    with mock.patch.object(gui.shutil, "which", return_value="/usr/bin/zenity"), \
+    with mock.patch.object(gui, "_zenity_path", return_value="/usr/bin/zenity"), \
          mock.patch.object(gui.subprocess, "run", boom), \
          mock.patch.object(gui.filedialog, "askopenfilenames", return_value=()) as dlg:
         assert gui._ask_open_filenames("t") == []

@@ -65,6 +65,18 @@ jobs:
       - name: Build with PyInstaller
         run: python build.py
 
+      # The built executable must actually start. Regression guard: a bundled
+      # ucrtbase.dll once made the Windows exe die in the PyInstaller bootloader
+      # ("Failed to load Python DLL") before any Python code ran — building
+      # successfully does not prove the artifact works.
+      - name: Smoke-test the executable
+        if: matrix.label == 'linux'
+        run: dist/eo-stt/eo-stt --help
+
+      - name: Smoke-test the executable
+        if: matrix.label == 'windows'
+        run: dist\eo-stt\eo-stt.exe --help
+
       - name: Pack the bundle (tar.gz)
         if: matrix.label == 'linux'
         shell: bash
