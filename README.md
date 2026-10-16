@@ -19,6 +19,8 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 | [eo-stt-v0.2-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-linux.tar.gz) | Linux (x86_64) |
 | [eo-stt-v0.2-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-windows.zip) | Windows (x64) tested on Windows 11, blocked by antivirus at first start |
 
+10 GB of RAM recommended.
+
 ## Install
 
 Requires **Python 3.10+**.
