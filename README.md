@@ -16,8 +16,8 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 
 | Artifact | Platform |
 |---|---|
-| [eo-stt-v0.1.1-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.1.1/eo-stt-v0.1.1-linux.tar.gz) | Linux (x86_64) |
-| [eo-stt-v0.1.1-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.1.1/eo-stt-v0.1.1-windows.zip) | Windows (x64) not working for some reason |
+| [eo-stt-v0.2-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-linux.tar.gz) | Linux (x86_64) |
+| [eo-stt-v0.2-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-windows.zip) | Windows (x64) tested on Windows 11, blocked by antivirus at first start |
 
 ## Install
 
