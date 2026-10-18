@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 # Dynamic-loader variables. In a PyInstaller build the bootloader points
 # LD_LIBRARY_PATH at the bundled _internal/ libraries (a setenv after startup,

@@ -16,8 +16,8 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 
 | Artifact | Platform |
 |---|---|
-| [eo-stt-v0.2-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-linux.tar.gz) | Linux (x86_64) |
-| [eo-stt-v0.2-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.2/eo-stt-v0.2-windows.zip) | Windows (x64) tested on Windows 11, blocked by antivirus at first start |
+| [eo-stt-v0.3-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.3/eo-stt-v0.3-linux.tar.gz) | Linux (x86_64) |
+| [eo-stt-v0.3-windows.zip](https://github.com/BitsAndDopamine/Esperanto-STT/releases/download/v0.3/eo-stt-v0.3-windows.zip) | Windows (x64) tested on Windows 11, blocked by antivirus at first start |
 
 At least 10 GB of RAM recommended.
 
@@ -73,9 +73,9 @@ Build a self-contained app with PyInstaller — no Python needed on the target m
 .venv/bin/python build.py          # -> dist/eo-stt/ (folder, ~250-350 MB)
 ```
 
-- The executable inside is **named with the version**: `eo-stt-v0.2-linux` (Linux) / `eo-stt-v0.2.exe` (Windows). The version comes from `eo_stt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there); override it with `build.py --version v0.3`. On Linux the name ends in `-linux`, **not** in a digit: a name like `eo-stt-v0.2` ends in `.2`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
-- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-stt-v0.2-linux fremdulo.mp3 -o out/`.
-- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux (`tar.gz`) and Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`), passing the tag as the version. Push a tag (`git tag v0.3 && git push origin v0.3`) to trigger a release build.
+- The executable inside is **named with the version**: `eo-stt-v0.3-linux` (Linux) / `eo-stt-v0.3.exe` (Windows). The version comes from `eo_stt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there, the "pri" window shows it, and the executable is named after it); override it with `build.py --version v0.3.1`. On Linux the name ends in `-linux`, **not** in a digit: a name like `eo-stt-v0.3` ends in `.3`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
+- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-stt-v0.3-linux fremdulo.mp3 -o out/`.
+- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux (`tar.gz`) and Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). To cut a release: **bump `__version__` in `eo_stt/__init__.py` first** (it is the single source — the "pri" window, the executable name and the archive names all follow it), commit, then tag and push: `git tag v0.3 && git push origin master v0.3`. CI fails the build when the tag and `__version__` disagree, so the versions can never drift apart.
 - The release archives contain the bundle's files **directly** — the versioned executable, `_internal/` and `model/` sit at the archive root; there is no top-level folder to open after extracting.
 - The bundle is **CPU-only ONNX Runtime** (no CUDA); inference is ~10-15x realtime on a CPU.
 - The INT8 model (~142 MB) **is bundled** in `dist/eo-stt/model/`, beside the executable. Nothing is downloaded at runtime — the app works fully offline, including on a fresh Windows machine without Python.

@@ -48,6 +48,22 @@ jobs:
           cache: pip
           cache-dependency-glob: pyproject.toml
 
+      # eo_stt/__init__.py::__version__ is the single source of the version:
+      # the "pri" window and the executable name both come from it. Fail fast
+      # (before the model download) when a release tag disagrees with it —
+      # tagging v0.3 without bumping __version__ would otherwise ship an exe
+      # whose "pri" window still says v0.2.
+      - name: Check the release tag matches the package version
+        if: matrix.label == 'linux' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          expected="v$(python -c "from eo_stt import __version__; print(__version__)")"
+          if [ "$expected" != "${{ github.ref_name }}" ]; then
+            echo "error: tag '${{ github.ref_name }}' does not match eo_stt.__version__ (${expected})." >&2
+            echo "Bump __version__ in eo_stt/__init__.py to match the tag, then re-tag." >&2
+            exit 1
+          fi
+          echo "OK: tag '${{ github.ref_name }}' matches the package version (${expected})"
+
       # The INT8 model (~142 MB) is fetched at build time and bundled into the
       # executable; cache it so only the first build downloads it.
       - name: Restore the INT8 model
@@ -62,11 +78,12 @@ jobs:
       - name: Fetch the INT8 model (pinned, sha256-verified)
         run: python fetch_model.py
 
-      # The executable is named with the version (eo-stt-v0.2-linux /
-      # eo-stt-v0.2.exe): CI passes the release tag, local builds default to
-      # v<eo_stt.__version__>.
+      # The executable is named with the package version (eo-stt-v0.3-linux /
+      # eo-stt-v0.3.exe): eo_stt.__version__ is the single source of the
+      # version (the GUI's "pri" window shows it too), and the check above
+      # guarantees the release tag agrees with it.
       - name: Build with PyInstaller
-        run: python build.py --version "${{ github.ref_name }}"
+        run: python build.py
 
       # The built executable must actually start. Regression guard: a bundled
       # ucrtbase.dll once made the Windows exe die in the PyInstaller bootloader

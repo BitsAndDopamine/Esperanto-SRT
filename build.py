@@ -11,10 +11,12 @@ What the bundle contains:
   verified); the app itself never downloads anything at runtime.
 
 The executable inside dist/eo-stt/ is renamed to carry the version:
-eo-stt-v0.2-linux (Linux) / eo-stt-v0.2.exe (Windows). The version label
-defaults to v<eo_stt.__version__>; CI passes the release tag via --version.
-Renaming is safe: a PyInstaller onedir executable locates its _internal/
-folder and the model/ directory relative to its own path, not its name.
+eo-stt-v0.3-linux (Linux) / eo-stt-v0.3.exe (Windows). The version label
+defaults to v<eo_stt.__version__> — the single source of the version (the
+GUI's "pri" window shows it too); CI builds with the package version and
+checks that the release tag matches it. Renaming is safe: a PyInstaller
+onedir executable locates its _internal/ folder and the model/ directory
+relative to its own path, not its name.
 
 Why "-linux" and not just "eo-stt-v0.2": a Linux file name ending in a
 single digit after a dot ("*.1".."*.9") is classified as a man page
