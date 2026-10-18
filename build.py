@@ -10,8 +10,23 @@ What the bundle contains:
   It is fetched at BUILD time by fetch_model.py (pinned HF commit, sha256
   verified); the app itself never downloads anything at runtime.
 
+The executable inside dist/eo-stt/ is renamed to carry the version:
+eo-stt-v0.2-linux (Linux) / eo-stt-v0.2.exe (Windows). The version label
+defaults to v<eo_stt.__version__>; CI passes the release tag via --version.
+Renaming is safe: a PyInstaller onedir executable locates its _internal/
+folder and the model/ directory relative to its own path, not its name.
+
+Why "-linux" and not just "eo-stt-v0.2": a Linux file name ending in a
+single digit after a dot ("*.1".."*.9") is classified as a man page
+(application/x-troff-man, a text type) by the shared MIME database — file
+managers then open the binary in a text editor on double-click instead of
+running it (the executable bit is unaffected). The "-linux" suffix keeps
+the version in the name without that suffix. Windows uses the ".exe"
+extension and has no such rule.
+
 PyInstaller cannot cross-compile: run this once per target OS (Linux, Windows,
-macOS). .github/workflows/build.yml does exactly that in CI.
+macOS). .github/workflows/build.yml does exactly that in CI, and packs the
+bundle's *contents* (no top-level folder) into the release archives.
 """
 
 from __future__ import annotations
@@ -25,6 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
+from eo_stt import __version__  # noqa: E402
 from fetch_model import MODEL_DIR, fetch_model  # noqa: E402
 
 # Packages whose data/submodules/native libs PyInstaller's static analysis misses.
@@ -130,9 +146,33 @@ coll = COLLECT(
 """
 
 
+def versioned_exe_name(base: str, version: str | None = None, platform: str | None = None) -> str:
+    """File name of the built executable: the base name plus the version label.
+
+    Windows: "eo-stt-v0.2.exe". Linux: "eo-stt-v0.2-linux" — the trailing
+    "-linux" is deliberate: a name ending in ".<digit>" (like "eo-stt-v0.2")
+    matches the "*.1".."*.9" man-page globs of the shared MIME database, so
+    Linux file managers classify the binary as a text document and open it
+    in a text editor on double-click instead of running it.
+    """
+    version = version or f"v{__version__}"
+    platform = platform if platform is not None else sys.platform
+    if platform.startswith("win"):
+        return f"{base}-{version}.exe"
+    if platform.startswith("linux"):
+        return f"{base}-{version}-linux"
+    if platform.startswith("darwin"):
+        return f"{base}-{version}-macos"
+    return f"{base}-{version}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--name", default="eo-stt")
+    ap.add_argument("--name", default="eo-stt",
+                    help="base name of the bundle folder (dist/<name>/)")
+    ap.add_argument("--version", default=None,
+                    help="version label in the executable name, e.g. v0.2 "
+                         "(default: v<eo_stt.__version__>; CI passes the release tag)")
     ap.add_argument("--skip-model-fetch", action="store_true",
                     help="do not download the model if missing (fail instead)")
     args = ap.parse_args()
@@ -166,9 +206,22 @@ def main() -> int:
     print("+ " + " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
 
+    bundle_dir = ROOT / "dist" / args.name
+
+    # rename the executable to carry the version (see versioned_exe_name). A
+    # PyInstaller onedir executable finds _internal/ and model/ relative to
+    # its own path, so the new name does not affect startup or model lookup.
+    old_exe = bundle_dir / (f"{args.name}.exe" if sys.platform.startswith("win") else args.name)
+    new_exe = bundle_dir / versioned_exe_name(args.name, args.version)
+    if new_exe != old_exe:
+        if not old_exe.is_file():
+            print(f"expected executable not found: {old_exe}", file=sys.stderr)
+            return 1
+        old_exe.rename(new_exe)
+        print(f"Executable renamed: {old_exe.name} -> {new_exe.name}")
+
     # ship the model in its own directory beside the executable (not inside
     # _internal/), so it is never bundled twice and stays swappable
-    bundle_dir = ROOT / "dist" / args.name
     model_dest = bundle_dir / "model"
     if model_dest.exists():
         shutil.rmtree(model_dest)
@@ -176,6 +229,7 @@ def main() -> int:
 
     total = sum(f.stat().st_size for f in bundle_dir.rglob("*") if f.is_file() and not f.is_symlink())
     print(f"\nBuild finished -> {bundle_dir}")
+    print(f"Start it with: {new_exe}")
     print(f"Installed size: {total / 1e6:.1f} MB (model: {sum(f.stat().st_size for f in model_dest.iterdir()) / 1e6:.1f} MB)")
     return 0
 

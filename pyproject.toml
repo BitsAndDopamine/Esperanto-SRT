@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eo-stt"
-version = "0.1.0"
+# The version lives in exactly one place: eo_stt/__init__.py::__version__
+# (the GUI's "pri" window and build.py's executable name both read it from
+# there, so the package metadata, the app and the exe can never drift apart).
+dynamic = ["version"]
 description = "Esperanto speech-to-text: mp3 audio to .srt subtitles, with a GUI (Linux/Windows)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +31,9 @@ eo-stt-cli = "eo_stt.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["eo_stt*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "eo_stt.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

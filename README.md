@@ -51,7 +51,7 @@ CLI:
 
 Writes `episode.srt` next to each input (or into the `-o` directory). Accepted input formats: mp3, wav, ogg, flac (m4a/aac only when ffmpeg is installed). Both the GUI and the CLI show chunk-level progress, so long files don't look stuck.
 
-The GUI is in **Esperanto** (with diacritics). After a run completes it opens a read-only **preview window** of the finished `.srt` with a "kopii ĉion" (copy all) button; each file in the list also has an "srt" button to preview its `.srt` at any time. The CLI stays ASCII-only (some Windows consoles can't print diacritics).
+The GUI is in **Esperanto** (with diacritics). After a run completes it opens a read-only **preview window** of the finished `.srt` with a "kopii ĉion" (copy all) button; each file in the list also has an "srt" button to preview its `.srt` — it is only clickable once the `.srt` exists (it lights up as soon as transcription of that file starts, since the file grows incrementally). A **"pri"** button opens a small window with the version, the GitHub repository and the licenses. The CLI stays ASCII-only (some Windows consoles can't print diacritics).
 
 The `.srt` file is **written incrementally**: it is created when transcription starts and grows block by block while the progress bar runs, so you can already open it (in an editor, a player, or the preview window) and check the transcript so far. If a run fails midway, the partial file is kept.
 
@@ -73,8 +73,10 @@ Build a self-contained app with PyInstaller — no Python needed on the target m
 .venv/bin/python build.py          # -> dist/eo-stt/ (folder, ~250-350 MB)
 ```
 
-- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-stt fremdulo.mp3 -o out/`.
-- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux (`tar.gz`) and Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). Push a tag (`git tag v0.1.0 && git push origin v0.1.0`) to trigger a release build.
+- The executable inside is **named with the version**: `eo-stt-v0.2-linux` (Linux) / `eo-stt-v0.2.exe` (Windows). The version comes from `eo_stt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there); override it with `build.py --version v0.3`. On Linux the name ends in `-linux`, **not** in a digit: a name like `eo-stt-v0.2` ends in `.2`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
+- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-stt-v0.2-linux fremdulo.mp3 -o out/`.
+- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux (`tar.gz`) and Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`), passing the tag as the version. Push a tag (`git tag v0.3 && git push origin v0.3`) to trigger a release build.
+- The release archives contain the bundle's files **directly** — the versioned executable, `_internal/` and `model/` sit at the archive root; there is no top-level folder to open after extracting.
 - The bundle is **CPU-only ONNX Runtime** (no CUDA); inference is ~10-15x realtime on a CPU.
 - The INT8 model (~142 MB) **is bundled** in `dist/eo-stt/model/`, beside the executable. Nothing is downloaded at runtime — the app works fully offline, including on a fresh Windows machine without Python.
 - The model files are fetched at build time by `fetch_model.py` (pinned Hugging Face commit, sha256-verified) into `models/` (gitignored; never committed — the encoder file is too large for git).
@@ -106,15 +108,15 @@ PyInstaller cannot cross-compile, so the Windows build runs **on a Windows machi
    .venv\Scripts\python.exe build.py
    ```
 
-   Result: `dist\eo-stt\` (~300 MB) containing `eo-stt.exe`, the `_internal\` runtime folder, and the model in `dist\eo-stt\model\`. A build takes a couple of minutes plus the model download.
-6. **Test on a clean machine**: copy the `dist\eo-stt` folder to a PC without Python. Double-click `eo-stt.exe` for the GUI, or run `eo-stt.exe episode.mp3 -o out\` for the CLI. No internet needed.
-7. **Distribute**: zip the folder (PowerShell):
+   Result: `dist\eo-stt\` (~300 MB) containing `eo-stt-v0.2.exe`, the `_internal\` runtime folder, and the model in `dist\eo-stt\model\`. A build takes a couple of minutes plus the model download.
+6. **Test on a clean machine**: copy the `dist\eo-stt` folder to a PC without Python. Double-click `eo-stt-v0.2.exe` for the GUI, or run `eo-stt-v0.2.exe episode.mp3 -o out\` for the CLI. No internet needed.
+7. **Distribute**: zip the folder's *contents* (PowerShell), so the zip has no top-level folder:
 
    ```powershell
-   Compress-Archive -Path dist\eo-stt -DestinationPath dist\eo-stt-windows.zip
+   Compress-Archive -Path dist\eo-stt\* -DestinationPath dist\eo-stt-v0.2-windows.zip
    ```
 
-   The zip is ~160 MB.
+   The zip is ~160 MB and contains `eo-stt-v0.2.exe`, `_internal\` and `model\` directly at its root.
 
 Notes:
 

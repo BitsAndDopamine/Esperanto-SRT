@@ -27,7 +27,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import subprocess_env
+from . import __version__, subprocess_env
 from .model import load_model
 from .transcribe import srt_path_for, transcribe_file
 
@@ -47,6 +47,24 @@ AUDIO_TYPES = [
 # Share of the progress bar reserved for loading the model. Loading the INT8
 # ONNX model takes a while on CPU, so it gets its own visible first step.
 MODEL_LOAD_SHARE = 0.05
+
+# Text of the "pri" (about) window: what the app is, where the source lives,
+# and which licenses apply (the code and the bundled model differ).
+ABOUT_TEXT = (
+    f"eo-stt v{__version__}\n"
+    "esperanta parolrekonado (mp3 -> srt)\n"
+    "\n"
+    "github: https://github.com/BitsAndDopamine/Esperanto-STT\n"
+    "(kodo, novaj versioj kaj por viaj raportoj pri cimnoj)\n"
+    "\n"
+    "licenco de la kodo: CC0 1.0 Universal (publika domeno)\n"
+    "licenco de la modelo: CC-BY-4.0 - by NVIDIA\n"
+    "nvidia-eo-conformer-transducer-large-onnx\n"
+    "\n"
+    "ankaŭ dankon al ciuj kontribuantoj de la projekto Common Voice\n"
+    "https://commonvoice.mozilla.org/eo \n"
+    "\n"
+)
 
 
 def _zenity_path() -> str | None:
@@ -221,6 +239,25 @@ class PreviewWindow(ctk.CTkToplevel):
             self._copy_btn.configure(text="kopii ĉion")
 
 
+class AboutWindow(ctk.CTkToplevel):
+    """The "pri" window: version, GitHub repo and the licenses.
+
+    Read-only like the preview, but the text stays selectable so the
+    repository URL can be copied out of it.
+    """
+
+    def __init__(self, master: tk.Misc):
+        super().__init__(master)
+        self.title("pri eo-stt")
+        self.geometry("560x300")
+        self.minsize(420, 240)
+        box = ctk.CTkTextbox(self, wrap="word", corner_radius=0)
+        box.pack(fill="both", expand=True, padx=10, pady=(10, 6))
+        box.insert("1.0", ABOUT_TEXT)
+        box.configure(state="disabled")  # read-only, but still selectable
+        ctk.CTkButton(self, text="fermi", command=self.destroy, corner_radius=0).pack(pady=(0, 10))
+
+
 class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
@@ -234,6 +271,7 @@ class App(ctk.CTk):
         self._worker: threading.Thread | None = None
         self._files: list[Path] = []
         self._rows: dict[Path, ctk.CTkFrame] = {}
+        self._srt_buttons: dict[Path, ctk.CTkButton] = {}
         logger = logging.getLogger("eo_stt")
         logger.setLevel(logging.INFO)
         logger.addHandler(_QueueHandler(self._events))
@@ -257,6 +295,7 @@ class App(ctk.CTk):
         btns.pack(side="left", fill="y", padx=(8, 0))
         ctk.CTkButton(btns, text="aldoni dosierojn...", command=self._add_files, **cr).pack(fill="x", pady=2)
         ctk.CTkButton(btns, text="malplenigi", command=self._clear_files, **cr).pack(fill="x", pady=2)
+        ctk.CTkButton(btns, text="pri", command=self._show_about, **cr).pack(fill="x", pady=2)
 
         out = ctk.CTkFrame(self, fg_color="transparent", **cr)
         out.pack(fill="x", **pad)
@@ -299,25 +338,30 @@ class App(ctk.CTk):
             row = ctk.CTkFrame(self._list_frame, fg_color="transparent", corner_radius=0)
             row.pack(fill="x", pady=1)
             ctk.CTkLabel(row, text=path.name, anchor="w").pack(side="left", fill="x", expand=True)
-            ctk.CTkButton(
+            srt_btn = ctk.CTkButton(
                 row, text="srt", width=36, height=28, corner_radius=0,
                 command=lambda p=path: self._preview_file(p),
-            ).pack(side="right", padx=2)
+            )
+            srt_btn.pack(side="right", padx=2)
             ctk.CTkButton(
                 row, text="x", width=28, height=28, corner_radius=0,
                 command=lambda p=path: self._remove_file(p),
             ).pack(side="right", padx=2)
             self._rows[path] = row
+            self._srt_buttons[path] = srt_btn
             self._files.append(path)
         if self._files:
             self._placeholder.pack_forget()
         if self._files and not self._out_var.get():
             self._out_var.set(str(self._files[0].parent))
+        # a file may already have a .srt (e.g. re-adding it after a run)
+        self._refresh_srt_buttons()
 
     def _remove_file(self, path: Path) -> None:
         row = self._rows.pop(path, None)
         if row is not None:
             row.destroy()
+        self._srt_buttons.pop(path, None)
         if path in self._files:
             self._files.remove(path)
         if not self._files:
@@ -327,6 +371,7 @@ class App(ctk.CTk):
         for row in self._rows.values():
             row.destroy()
         self._rows.clear()
+        self._srt_buttons.clear()
         self._files.clear()
         self._placeholder.pack(fill="x", pady=2)
 
@@ -334,6 +379,30 @@ class App(ctk.CTk):
         directory = _ask_directory("elektu eligan dosierujon")
         if directory:
             self._out_var.set(directory)
+            # the .srt location depends on the output folder: re-check all rows
+            self._refresh_srt_buttons()
+
+    # -- about ----------------------------------------------------------------
+
+    def _show_about(self) -> None:
+        AboutWindow(self)
+
+    # -- srt button state -------------------------------------------------------
+
+    def _srt_exists(self, audio_path: Path) -> bool:
+        """Does the .srt for audio_path exist, given the current output folder?"""
+        out_dir = self._out_var.get().strip() or None
+        return srt_path_for(audio_path, out_dir).is_file()
+
+    def _refresh_srt_buttons(self) -> None:
+        """A row's "srt" button is clickable only when its .srt file exists.
+
+        Called when files are added, when the output folder changes, and as
+        worker events arrive (the .srt is written incrementally, so it appears
+        while a file is being transcribed).
+        """
+        for path, btn in self._srt_buttons.items():
+            btn.configure(state="normal" if self._srt_exists(path) else "disabled")
 
     # -- preview ------------------------------------------------------------
 
@@ -410,8 +479,10 @@ class App(ctk.CTk):
                     self._append_log(payload)
                 elif kind == "progress":
                     self._progress.set(payload / 100)
+                    self._refresh_srt_buttons()  # .srt files appear during a run
                 elif kind == "status":
                     self._set_status(payload)
+                    self._refresh_srt_buttons()
                 elif kind == "model_loaded":
                     # model loading finished: busy animation -> real progress
                     self._progress.stop()
@@ -425,6 +496,7 @@ class App(ctk.CTk):
                 elif kind == "finished":
                     self._progress.stop()  # never leave the busy animation running
                     self._run_btn.configure(state="normal")
+                    self._refresh_srt_buttons()
         except queue.Empty:
             pass
         self.after(100, self._poll)

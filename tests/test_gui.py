@@ -15,6 +15,7 @@ from unittest import mock
 import pytest
 
 import eo_stt.gui as gui
+from eo_stt import __version__
 
 
 def _display_available() -> bool:
@@ -296,5 +297,89 @@ def test_run_failure_stops_animation_and_reports(tmp_path, monkeypatch):
         assert app._status.cget("text") == "eraro"
         assert str(app._run_btn.cget("state")) == "normal"
         assert errors and "modelo mankas" in errors[0][1]
+    finally:
+        app.destroy()
+
+
+# -- "pri" (about) window ------------------------------------------------------
+
+
+def test_about_text_mentions_version_repo_and_licenses():
+    text = gui.ABOUT_TEXT
+    assert f"v{__version__}" in text
+    assert "https://github.com/BitsAndDopamine/Esperanto-STT" in text
+    assert "CC0 1.0" in text    # license of the code
+    assert "CC-BY-4.0" in text  # license of the bundled model
+
+
+@needs_display
+def test_about_window_opens():
+    app = gui.App()
+    try:
+        app._show_about()
+        app.update()
+        windows = [w for w in app.winfo_children() if isinstance(w, gui.AboutWindow)]
+        assert len(windows) == 1
+        assert windows[0].title() == "pri eo-stt"
+        windows[0].destroy()
+    finally:
+        app.destroy()
+
+
+# -- "srt" button enabled only when the .srt exists ----------------------------
+
+
+@needs_display
+def test_srt_button_only_enabled_when_srt_exists(tmp_path, monkeypatch):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF....")
+    monkeypatch.setattr(gui, "_ask_open_filenames", lambda title: [wav])
+
+    app = gui.App()
+    try:
+        app._add_files()
+        btn = app._srt_buttons[wav]
+        # no .srt yet (the default output folder is the file's own folder)
+        assert str(btn.cget("state")) == "disabled"
+
+        srt = tmp_path / "a.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nsaluton\n", encoding="utf-8")
+        app._refresh_srt_buttons()
+        assert str(btn.cget("state")) == "normal"
+
+        # a different output folder has no .srt for this file -> disabled again
+        other = tmp_path / "alia"
+        other.mkdir()
+        app._out_var.set(str(other))
+        app._refresh_srt_buttons()
+        assert str(btn.cget("state")) == "disabled"
+    finally:
+        app.destroy()
+
+
+@needs_display
+def test_srt_button_enabled_after_run(tmp_path, monkeypatch):
+    def fake_transcribe_file(model, path, out_dir, on_progress=None):
+        out = gui.srt_path_for(path, out_dir)
+        out.write_text("1\n00:00:00,000 --> 00:00:01,000\nsaluton\n", encoding="utf-8")
+        return out
+
+    monkeypatch.setattr(gui, "load_model", lambda: object())
+    monkeypatch.setattr(gui, "transcribe_file", fake_transcribe_file)
+    monkeypatch.setattr(gui, "_ask_open_filenames", lambda title: [tmp_path / "a.wav"])
+    (tmp_path / "a.wav").write_bytes(b"RIFF....")
+
+    app = gui.App()
+    try:
+        monkeypatch.setattr(app, "_open_preview", lambda p: None)
+        app._add_files()
+        btn = app._srt_buttons[tmp_path / "a.wav"]
+        assert str(btn.cget("state")) == "disabled"
+
+        app._start()
+        _drain(app)
+
+        # the run wrote the .srt; the worker events refreshed the button
+        assert str(btn.cget("state")) == "normal"
     finally:
         app.destroy()

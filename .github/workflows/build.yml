@@ -62,8 +62,11 @@ jobs:
       - name: Fetch the INT8 model (pinned, sha256-verified)
         run: python fetch_model.py
 
+      # The executable is named with the version (eo-stt-v0.2-linux /
+      # eo-stt-v0.2.exe): CI passes the release tag, local builds default to
+      # v<eo_stt.__version__>.
       - name: Build with PyInstaller
-        run: python build.py
+        run: python build.py --version "${{ github.ref_name }}"
 
       # The built executable must actually start. Regression guard: a bundled
       # ucrtbase.dll once made the Windows exe die in the PyInstaller bootloader
@@ -71,21 +74,24 @@ jobs:
       # successfully does not prove the artifact works.
       - name: Smoke-test the executable
         if: matrix.label == 'linux'
-        run: dist/eo-stt/eo-stt --help
+        run: dist/eo-stt/eo-stt-${{ github.ref_name }}-linux --help
 
       - name: Smoke-test the executable
         if: matrix.label == 'windows'
-        run: dist\eo-stt\eo-stt.exe --help
+        run: dist\eo-stt\eo-stt-${{ github.ref_name }}.exe --help
 
+      # The archives contain the bundle's files directly (the versioned
+      # executable, _internal/ and model/ at the archive root) — no top-level
+      # eo-stt/ folder to open first after extracting.
       - name: Pack the bundle (tar.gz)
         if: matrix.label == 'linux'
         shell: bash
-        run: tar -czf "dist/eo-stt-${{ github.ref_name }}-linux.tar.gz" -C dist eo-stt
+        run: tar -czf "dist/eo-stt-${{ github.ref_name }}-linux.tar.gz" -C dist/eo-stt .
 
       - name: Zip the bundle
         if: matrix.label == 'windows'
         shell: pwsh
-        run: Compress-Archive -Path dist\eo-stt -DestinationPath "dist\eo-stt-${{ github.ref_name }}-windows.zip"
+        run: Compress-Archive -Path dist\eo-stt\* -DestinationPath "dist\eo-stt-${{ github.ref_name }}-windows.zip"
 
       - uses: actions/upload-artifact@v4
         with:
