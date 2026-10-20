@@ -17,7 +17,7 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 | Artifact | Platform |
 |---|---|
 | [eo-srt-v0.3-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v0.3/eo-srt-v0.3-linux.tar.gz) | Linux (x86_64) |
-| [eo-srt-v0.3-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v0.3/eo-srt-v0.3-windows.zip) | Windows (x64) tested on Windows 11, blocked by antivirus at first start |
+| [eo-srt-v0.3-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v0.3/eo-srt-v0.3-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
 
 At least 10 GB of RAM recommended.
 
