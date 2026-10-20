@@ -1,6 +1,6 @@
 """CustomTkinter GUI (Linux + Windows + macOS, dark mode).
 
-Run with: python -m eo_stt   (or the PyInstaller executable with no arguments)
+Run with: python -m eo_srt   (or the PyInstaller executable with no arguments)
 
 All transcription happens in a worker thread; the GUI only receives events
 through a queue (Tk is not thread-safe). The interface language is Esperanto
@@ -48,13 +48,25 @@ AUDIO_TYPES = [
 # ONNX model takes a while on CPU, so it gets its own visible first step.
 MODEL_LOAD_SHARE = 0.05
 
+# App icon: <repo>/eo-srt.png when running from source, the PyInstaller bundle
+# (_MEIPASS) when frozen. Used for the window/taskbar icon (App._set_icon).
+ICON_FILE = "eo-srt.png"
+
+
+def _icon_path() -> Path:
+    """Locate the app icon: repo root from source, the bundle dir when frozen."""
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+        return meipass / ICON_FILE
+    return Path(__file__).resolve().parent.parent / ICON_FILE
+
 # Text of the "pri" (about) window: what the app is, where the source lives,
 # and which licenses apply (the code and the bundled model differ).
 ABOUT_TEXT = (
-    f"eo-stt v{__version__}\n"
+    f"esperanto-srt v{__version__}\n"
     "esperanta parolrekonado (mp3 -> srt)\n"
     "\n"
-    "github: https://github.com/BitsAndDopamine/Esperanto-STT\n"
+    "github: https://github.com/BitsAndDopamine/Esperanto-SRT\n"
     "(kodo, novaj versioj kaj por viaj raportoj pri cimnoj)\n"
     "\n"
     "licenco de la kodo: CC0 1.0 Universal\n"
@@ -75,7 +87,7 @@ def _zenity_path() -> str | None:
 
 
 def _run_zenity(zenity: str, args: list[str]) -> subprocess.CompletedProcess | None:
-    """Run zenity with a clean environment (see eo_stt.subprocess_env).
+    """Run zenity with a clean environment (see eo_srt.subprocess_env).
 
     Returns None when zenity could not be started at all (OSError).
     """
@@ -87,7 +99,7 @@ def _run_zenity(zenity: str, args: list[str]) -> subprocess.CompletedProcess | N
             env=subprocess_env(),
         )
     except OSError as exc:
-        logging.getLogger("eo_stt").warning("zenity ne povis starti: %s", exc)
+        logging.getLogger("eo_srt").warning("zenity ne povis starti: %s", exc)
         return None
 
 
@@ -121,14 +133,14 @@ def _ask_open_filenames(title: str) -> list[Path]:
                 return []  # user cancelled
             # any other exit code is a failure, not a cancel: say so and
             # fall back to the Tk dialog instead of silently doing nothing
-            logging.getLogger("eo_stt").warning(
+            logging.getLogger("eo_srt").warning(
                 "zenity malsukcesis (elirkodo %s): %s",
                 proc.returncode, proc.stderr.strip() or "neniu detalo",
             )
     try:
         paths = filedialog.askopenfilenames(title=title, filetypes=AUDIO_TYPES)
     except tk.TclError as exc:
-        messagebox.showerror("eo-stt - eraro", f"ne eblas malfermi la dosier-elektilon:\n{exc}")
+        messagebox.showerror("eo-srt - eraro", f"ne eblas malfermi la dosier-elektilon:\n{exc}")
         return []
     return [Path(p) for p in paths]
 
@@ -143,19 +155,19 @@ def _ask_directory(title: str) -> str:
                 return proc.stdout.strip()
             if proc.returncode == 1:
                 return ""  # user cancelled
-            logging.getLogger("eo_stt").warning(
+            logging.getLogger("eo_srt").warning(
                 "zenity malsukcesis (elirkodo %s): %s",
                 proc.returncode, proc.stderr.strip() or "neniu detalo",
             )
     try:
         return filedialog.askdirectory(title=title)
     except tk.TclError as exc:
-        messagebox.showerror("eo-stt - eraro", f"ne eblas malfermi la dosieruj-elektilon:\n{exc}")
+        messagebox.showerror("eo-srt - eraro", f"ne eblas malfermi la dosieruj-elektilon:\n{exc}")
         return ""
 
 
 class _QueueHandler(logging.Handler):
-    """Forward eo_stt log records into the GUI event queue (worker thread safe)."""
+    """Forward eo_srt log records into the GUI event queue (worker thread safe)."""
 
     def __init__(self, events: queue.Queue) -> None:
         super().__init__()
@@ -248,7 +260,7 @@ class AboutWindow(ctk.CTkToplevel):
 
     def __init__(self, master: tk.Misc):
         super().__init__(master)
-        self.title("pri eo-stt")
+        self.title("pri eo-srt")
         self.geometry("560x300")
         self.minsize(420, 240)
         box = ctk.CTkTextbox(self, wrap="word", corner_radius=0)
@@ -261,9 +273,10 @@ class AboutWindow(ctk.CTkToplevel):
 class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("eo-stt - Esperanto parolrekonado (mp3 -> srt)")
+        self.title("esperanto-srt - Esperanto parolrekonado (mp3 -> srt)")
         self.geometry("760x560")
         self.minsize(680, 460)
+        self._set_icon()
         family = _default_font_family(self)
         ctk.ThemeManager.theme["CTkFont"]["family"] = family
         _setup_tk_fonts(self, family)
@@ -272,11 +285,23 @@ class App(ctk.CTk):
         self._files: list[Path] = []
         self._rows: dict[Path, ctk.CTkFrame] = {}
         self._srt_buttons: dict[Path, ctk.CTkButton] = {}
-        logger = logging.getLogger("eo_stt")
+        logger = logging.getLogger("eo_srt")
         logger.setLevel(logging.INFO)
         logger.addHandler(_QueueHandler(self._events))
         self._build()
         self.after(100, self._poll)
+
+    def _set_icon(self) -> None:
+        """Window + taskbar icon (WM_SETICON on Windows, _NET_WM_ICON on
+        Linux). The PhotoImage must stay referenced or Tk drops the icon."""
+        try:
+            icon = _icon_path()
+            if icon.is_file():
+                self._icon_image = tk.PhotoImage(file=str(icon))
+                # -default: also applies to toplevels opened later (pri/preview)
+                self.iconphoto(True, self._icon_image)
+        except tk.TclError:
+            pass  # a missing or unreadable icon must not keep the GUI from starting
 
     def _build(self) -> None:
         pad = {"padx": 10, "pady": 6}
@@ -413,7 +438,7 @@ class App(ctk.CTk):
 
     def _open_preview(self, srt_path: Path) -> None:
         if not srt_path.is_file():
-            messagebox.showinfo("eo-stt", "ĉi tiu dosiero ankoraŭ ne estas transskribita.")
+            messagebox.showinfo("eo-srt", "ĉi tiu dosiero ankoraŭ ne estas transskribita.")
             return
         PreviewWindow(self, srt_path)
 
@@ -423,7 +448,7 @@ class App(ctk.CTk):
         if self._worker and self._worker.is_alive():
             return
         if not self._files:
-            messagebox.showinfo("eo-stt", "unue elektu almenaŭ unu aŭdan dosieron.")
+            messagebox.showinfo("eo-srt", "unue elektu almenaŭ unu aŭdan dosieron.")
             return
         self._run_btn.configure(state="disabled")
         self._progress.set(0)
@@ -492,7 +517,7 @@ class App(ctk.CTk):
                     if payload:
                         self._open_preview(Path(payload))
                 elif kind == "error":
-                    messagebox.showerror("eo-stt - eraro", payload)
+                    messagebox.showerror("eo-srt - eraro", payload)
                 elif kind == "finished":
                     self._progress.stop()  # never leave the busy animation running
                     self._run_btn.configure(state="normal")

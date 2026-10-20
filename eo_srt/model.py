@@ -31,7 +31,7 @@ import numpy as np
 
 from .audio import TARGET_SAMPLE_RATE
 
-logger = logging.getLogger("eo_stt")
+logger = logging.getLogger("eo_srt")
 
 MODEL_ID = "OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx"
 MODEL_DIR_NAME = "nvidia-eo-conformer-transducer-large-onnx-int8"
@@ -53,10 +53,10 @@ _model_cache: dict[str, object] = {}
 def default_model_dir() -> Path:
     """Locate the local INT8 model directory (never downloads).
 
-    Order: $EO_STT_MODEL_DIR, then (frozen app) <exe dir>/model or the
+    Order: $EO_SRT_MODEL_DIR, then (frozen app) <exe dir>/model or the
     PyInstaller _MEIPASS bundle, then (source tree) <repo>/models/<name>.
     """
-    env = os.environ.get("EO_STT_MODEL_DIR")
+    env = os.environ.get("EO_SRT_MODEL_DIR")
     if env:
         return Path(env)
     candidates: list[Path] = []
@@ -110,7 +110,7 @@ class OnnxAsrModel:
                 "The app needs the local INT8 model files (encoder-model.int8.onnx, "
                 "decoder_joint-model.int8.onnx, config.json, vocab.txt). "
                 "Run 'python fetch_model.py' to download them, or point "
-                "EO_STT_MODEL_DIR at a directory that contains them."
+                "EO_SRT_MODEL_DIR at a directory that contains them."
             ) from exc
         self._recognizer = adapter.with_timestamps()
         self.model_dir = model_dir

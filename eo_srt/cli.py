@@ -1,7 +1,7 @@
 """Command line interface: transcribe audio files to .srt subtitles.
 
 Usage:
-    eo-stt-cli episode.mp3 [more.mp3 ...] [-o OUTPUT_DIR] [--model MODEL_DIR]
+    eo-srt-cli episode.mp3 [more.mp3 ...] [-o OUTPUT_DIR] [--model MODEL_DIR]
 
 Inference is CPU-only ONNX Runtime (INT8 model, loaded from local files;
 nothing is downloaded at runtime).
@@ -21,7 +21,7 @@ from .transcribe import transcribe_file
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(
-        prog="eo-stt-cli",
+        prog="eo-srt-cli",
         description="transskribas esperantan parolon (mp3/wav/ogg/flac) al .srt-subtitoloj.",
     )
     parser.add_argument("inputs", nargs="+", type=Path, help="dosieroj por transskribi")

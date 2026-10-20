@@ -1,6 +1,6 @@
-"""Entry point: `python -m eo_stt` or the PyInstaller executable.
+"""Entry point: `python -m eo_srt` or the PyInstaller executable.
 
-No arguments -> GUI. With arguments -> CLI (eo-stt FILE.mp3 [...] -o OUT_DIR).
+No arguments -> GUI. With arguments -> CLI (eo-srt FILE.mp3 [...] -o OUT_DIR).
 """
 
 import sys

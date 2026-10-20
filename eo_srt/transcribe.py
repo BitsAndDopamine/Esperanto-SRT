@@ -9,7 +9,7 @@ from .audio import TARGET_SAMPLE_RATE, load_audio
 from .model import transcribe_chunks
 from .srt import Segment, SrtWriter, proportional_segments, segments_from_words
 
-logger = logging.getLogger("eo_stt")
+logger = logging.getLogger("eo_srt")
 
 
 def transcribe_to_segments(model, audio_path: str | Path, on_progress=None, on_segments=None) -> list[Segment]:

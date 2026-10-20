@@ -15,8 +15,8 @@ never in widgets.
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CLI_SOURCE = ROOT / "eo_stt" / "cli.py"
-GUI_SOURCE = ROOT / "eo_stt" / "gui.py"
+CLI_SOURCE = ROOT / "eo_srt" / "cli.py"
+GUI_SOURCE = ROOT / "eo_srt" / "gui.py"
 
 # the only non-ASCII characters allowed in gui.py
 ESPERANTO_LETTERS = set("ĉĝĥĵŝŭĈĜĤĴŜŬ")

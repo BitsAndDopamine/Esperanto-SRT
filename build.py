@@ -1,24 +1,27 @@
 r"""Build the portable executable with PyInstaller (one folder per OS).
 
-    .venv/bin/python build.py            # Linux/macOS -> dist/eo-stt/
-    .venv\Scripts\python.exe build.py    # Windows -> dist\eo-stt\
+    .venv/bin/python build.py            # Linux/macOS -> dist/eo-srt/
+    .venv\Scripts\python.exe build.py    # Windows -> dist\eo-srt\
 
 What the bundle contains:
 - Python runtime + app code + GUI (customtkinter/Tk) + numpy + soundfile.
 - CPU-only ONNX Runtime + onnx-asr (no torch, NeMo, CUDA or TensorRT).
-- The INT8 ASR model (~142 MB) in dist/eo-stt/model/, beside the executable.
+- The INT8 ASR model (~142 MB) in dist/eo-srt/model/, beside the executable.
   It is fetched at BUILD time by fetch_model.py (pinned HF commit, sha256
   verified); the app itself never downloads anything at runtime.
+- The app icon (eo-srt.png): embedded into the Windows executable (PyInstaller
+  converts the PNG to .ico; needs Pillow from the "build" extra) and bundled
+  as data, where the GUI shows it in the window/taskbar on every OS.
 
-The executable inside dist/eo-stt/ is renamed to carry the version:
-eo-stt-v0.3-linux (Linux) / eo-stt-v0.3.exe (Windows). The version label
-defaults to v<eo_stt.__version__> — the single source of the version (the
+The executable inside dist/eo-srt/ is renamed to carry the version:
+eo-srt-v1.0-linux (Linux) / eo-srt-v1.0.exe (Windows). The version label
+defaults to v<eo_srt.__version__> — the single source of the version (the
 GUI's "pri" window shows it too); CI builds with the package version and
 checks that the release tag matches it. Renaming is safe: a PyInstaller
 onedir executable locates its _internal/ folder and the model/ directory
 relative to its own path, not its name.
 
-Why "-linux" and not just "eo-stt-v0.2": a Linux file name ending in a
+Why "-linux" and not just "eo-srt-v1.1": a Linux file name ending in a
 single digit after a dot ("*.1".."*.9") is classified as a man page
 (application/x-troff-man, a text type) by the shared MIME database — file
 managers then open the binary in a text editor on double-click instead of
@@ -42,8 +45,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from eo_stt import __version__  # noqa: E402
+from eo_srt import __version__  # noqa: E402
 from fetch_model import MODEL_DIR, fetch_model  # noqa: E402
+
+# App icon (repo root): embedded into the Windows executable and bundled as
+# data for the GUI's window/taskbar icon (see gui._icon_path).
+ICON_PNG = ROOT / "eo-srt.png"
 
 # Packages whose data/submodules/native libs PyInstaller's static analysis misses.
 COLLECT_ALL = [
@@ -93,6 +100,9 @@ for pkg in {collect_all!r}:
 for dist in {copy_metadata!r}:
     datas += copy_metadata(dist)
 
+# the app icon, bundled at the bundle root (the GUI finds it via _MEIPASS)
+datas.append(({icon_png!r}, '.'))
+
 a = Analysis(
     [{main_py!r}],
     pathex=[{root!r}],
@@ -125,6 +135,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name={name!r},
+    icon={icon!r},  # Windows: embedded into the exe (PNG converted to .ico); None elsewhere
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
@@ -151,8 +162,8 @@ coll = COLLECT(
 def versioned_exe_name(base: str, version: str | None = None, platform: str | None = None) -> str:
     """File name of the built executable: the base name plus the version label.
 
-    Windows: "eo-stt-v0.2.exe". Linux: "eo-stt-v0.2-linux" — the trailing
-    "-linux" is deliberate: a name ending in ".<digit>" (like "eo-stt-v0.2")
+    Windows: "eo-srt-v0.2.exe". Linux: "eo-srt-v0.2-linux" — the trailing
+    "-linux" is deliberate: a name ending in ".<digit>" (like "eo-srt-v0.2")
     matches the "*.1".."*.9" man-page globs of the shared MIME database, so
     Linux file managers classify the binary as a text document and open it
     in a text editor on double-click instead of running it.
@@ -168,13 +179,22 @@ def versioned_exe_name(base: str, version: str | None = None, platform: str | No
     return f"{base}-{version}"
 
 
+def exe_icon() -> str | None:
+    """Icon for the built executable: eo-srt.png on Windows (PyInstaller embeds
+    it, converting PNG -> .ico via Pillow), None elsewhere — a Linux ELF binary
+    carries no icon; the taskbar/dock icon comes from the running window."""
+    if sys.platform.startswith("win"):
+        return str(ICON_PNG)
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--name", default="eo-stt",
+    ap.add_argument("--name", default="eo-srt",
                     help="base name of the bundle folder (dist/<name>/)")
     ap.add_argument("--version", default=None,
                     help="version label in the executable name, e.g. v0.2 "
-                         "(default: v<eo_stt.__version__>; CI passes the release tag)")
+                         "(default: v<eo_srt.__version__>; CI passes the release tag)")
     ap.add_argument("--skip-model-fetch", action="store_true",
                     help="do not download the model if missing (fail instead)")
     args = ap.parse_args()
@@ -183,6 +203,9 @@ def main() -> int:
         fetch_model()  # no-op when the files are present and checksums match
     if not (MODEL_DIR / "config.json").is_file():
         print(f"Model files missing in {MODEL_DIR}. Run: python fetch_model.py", file=sys.stderr)
+        return 1
+    if not ICON_PNG.is_file():
+        print(f"Icon file missing: {ICON_PNG}", file=sys.stderr)
         return 1
 
     spec_path = ROOT / f"{args.name}.spec"
@@ -194,6 +217,8 @@ def main() -> int:
             main_py=str(ROOT / "main.py"),
             root=str(ROOT),
             name=args.name,
+            icon=exe_icon(),
+            icon_png=str(ICON_PNG),
         ),
         encoding="utf-8",
     )

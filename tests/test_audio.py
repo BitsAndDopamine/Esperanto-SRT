@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-import eo_stt.audio as audio
-from eo_stt.audio import TARGET_SAMPLE_RATE, audio_info, load_audio
+import eo_srt.audio as audio
+from eo_srt.audio import TARGET_SAMPLE_RATE, audio_info, load_audio
 
 
 def _write_wav(path, sr=44100, seconds=2.0, freq=440.0, channels=2):
@@ -95,7 +95,7 @@ def test_load_audio_long_file_blocked_resample(tmp_path):
 def test_ffmpeg_fallback_child_env_is_clean(tmp_path, monkeypatch):
     # a frozen build's bootloader points LD_LIBRARY_PATH at the bundled
     # _internal/ libraries; the ffmpeg child must not inherit that (see
-    # eo_stt.subprocess_env)
+    # eo_srt.subprocess_env)
     monkeypatch.setenv("LD_LIBRARY_PATH", "/frozen/_internal")
     seen = {}
 

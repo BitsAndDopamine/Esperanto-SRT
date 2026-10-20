@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from eo_stt.transcribe import srt_path_for, transcribe_file, transcribe_to_segments
+from eo_srt.transcribe import srt_path_for, transcribe_file, transcribe_to_segments
 
 
 class StubModel:

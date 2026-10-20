@@ -1,11 +1,11 @@
-"""Tests for the ONNX backend glue in eo_stt.model (no model download needed
+"""Tests for the ONNX backend glue in eo_srt.model (no model download needed
 for the unit tests; the integration test skips when the local INT8 model files
 are not present)."""
 
 import numpy as np
 import pytest
 
-from eo_stt.model import (
+from eo_srt.model import (
     MODEL_DIR_NAME,
     OnnxAsrModel,
     _words_from_tokens,
@@ -44,7 +44,7 @@ def test_words_from_tokens_empty():
 
 
 def test_default_model_dir_env_override(monkeypatch, tmp_path):
-    monkeypatch.setenv("EO_STT_MODEL_DIR", str(tmp_path))
+    monkeypatch.setenv("EO_SRT_MODEL_DIR", str(tmp_path))
     assert default_model_dir() == tmp_path
 
 
@@ -73,8 +73,8 @@ def test_onnx_model_transcribes_silence(tmp_path):
 
     model = load_model()
     assert isinstance(model, OnnxAsrModel)
-    from eo_stt.audio import load_audio
-    from eo_stt.transcribe import transcribe_file
+    from eo_srt.audio import load_audio
+    from eo_srt.transcribe import transcribe_file
 
     samples = load_audio(wav)
     hyps = model.transcribe([samples])

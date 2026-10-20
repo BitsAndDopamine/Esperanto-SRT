@@ -1,6 +1,6 @@
 import pytest
 
-from eo_stt.srt import (
+from eo_srt.srt import (
     MAX_BLOCK_CHARS,
     Segment,
     SrtWriter,

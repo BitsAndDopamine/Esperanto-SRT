@@ -1,10 +1,10 @@
-"""eo-stt — Esperanto speech-to-text (mp3 -> srt) with a GUI."""
+"""esperanto-srt — Esperanto speech-to-text (mp3 -> srt) with a GUI."""
 
 from __future__ import annotations
 
 import os
 
-__version__ = "0.3"
+__version__ = "1.0"
 
 # Dynamic-loader variables. In a PyInstaller build the bootloader points
 # LD_LIBRARY_PATH at the bundled _internal/ libraries (a setenv after startup,

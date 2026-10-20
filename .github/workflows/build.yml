@@ -48,18 +48,18 @@ jobs:
           cache: pip
           cache-dependency-glob: pyproject.toml
 
-      # eo_stt/__init__.py::__version__ is the single source of the version:
+      # eo_srt/__init__.py::__version__ is the single source of the version:
       # the "pri" window and the executable name both come from it. Fail fast
       # (before the model download) when a release tag disagrees with it —
-      # tagging v0.3 without bumping __version__ would otherwise ship an exe
-      # whose "pri" window still says v0.2.
+      # tagging v1.0 without bumping __version__ would otherwise ship an exe
+      # whose "pri" window still says v0.3.
       - name: Check the release tag matches the package version
         if: matrix.label == 'linux' && startsWith(github.ref, 'refs/tags/v')
         run: |
-          expected="v$(python -c "from eo_stt import __version__; print(__version__)")"
+          expected="v$(python -c "from eo_srt import __version__; print(__version__)")"
           if [ "$expected" != "${{ github.ref_name }}" ]; then
-            echo "error: tag '${{ github.ref_name }}' does not match eo_stt.__version__ (${expected})." >&2
-            echo "Bump __version__ in eo_stt/__init__.py to match the tag, then re-tag." >&2
+            echo "error: tag '${{ github.ref_name }}' does not match eo_srt.__version__ (${expected})." >&2
+            echo "Bump __version__ in eo_srt/__init__.py to match the tag, then re-tag." >&2
             exit 1
           fi
           echo "OK: tag '${{ github.ref_name }}' matches the package version (${expected})"
@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: models
-          key: eo-stt-model-${{ hashFiles('fetch_model.py') }}
+          key: eo-srt-model-${{ hashFiles('fetch_model.py') }}
 
       - name: Install dependencies (CPU-only ONNX stack)
         run: python -m pip install -e ".[build]"
@@ -78,8 +78,8 @@ jobs:
       - name: Fetch the INT8 model (pinned, sha256-verified)
         run: python fetch_model.py
 
-      # The executable is named with the package version (eo-stt-v0.3-linux /
-      # eo-stt-v0.3.exe): eo_stt.__version__ is the single source of the
+      # The executable is named with the package version (eo-srt-v1.0-linux /
+      # eo-srt-v1.0.exe): eo_srt.__version__ is the single source of the
       # version (the GUI's "pri" window shows it too), and the check above
       # guarantees the release tag agrees with it.
       - name: Build with PyInstaller
@@ -91,29 +91,29 @@ jobs:
       # successfully does not prove the artifact works.
       - name: Smoke-test the executable
         if: matrix.label == 'linux'
-        run: dist/eo-stt/eo-stt-${{ github.ref_name }}-linux --help
+        run: dist/eo-srt/eo-srt-${{ github.ref_name }}-linux --help
 
       - name: Smoke-test the executable
         if: matrix.label == 'windows'
-        run: dist\eo-stt\eo-stt-${{ github.ref_name }}.exe --help
+        run: dist\eo-srt\eo-srt-${{ github.ref_name }}.exe --help
 
       # The archives contain the bundle's files directly (the versioned
       # executable, _internal/ and model/ at the archive root) — no top-level
-      # eo-stt/ folder to open first after extracting.
+      # eo-srt/ folder to open first after extracting.
       - name: Pack the bundle (tar.gz)
         if: matrix.label == 'linux'
         shell: bash
-        run: tar -czf "dist/eo-stt-${{ github.ref_name }}-linux.tar.gz" -C dist/eo-stt .
+        run: tar -czf "dist/eo-srt-${{ github.ref_name }}-linux.tar.gz" -C dist/eo-srt .
 
       - name: Zip the bundle
         if: matrix.label == 'windows'
         shell: pwsh
-        run: Compress-Archive -Path dist\eo-stt\* -DestinationPath "dist\eo-stt-${{ github.ref_name }}-windows.zip"
+        run: Compress-Archive -Path dist\eo-srt\* -DestinationPath "dist\eo-srt-${{ github.ref_name }}-windows.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: eo-stt-${{ github.ref_name }}-${{ matrix.label }}
-          path: dist/eo-stt-${{ github.ref_name }}-${{ matrix.label }}.*
+          name: eo-srt-${{ github.ref_name }}-${{ matrix.label }}
+          path: dist/eo-srt-${{ github.ref_name }}-${{ matrix.label }}.*
 
   release:
     name: Release
@@ -127,5 +127,5 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/eo-stt-*
+          files: artifacts/eo-srt-*
           generate_release_notes: true

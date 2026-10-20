@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "eo-stt"
-# The version lives in exactly one place: eo_stt/__init__.py::__version__
+name = "eo-srt"
+# The version lives in exactly one place: eo_srt/__init__.py::__version__
 # (the GUI's "pri" window and build.py's executable name both read it from
 # there, so the package metadata, the app and the exe can never drift apart).
 dynamic = ["version"]
@@ -23,17 +23,18 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8", "lameenc>=1.4"]
-build = ["pyinstaller>=6"]
+# Pillow: PyInstaller converts the PNG app icon to .ico for the Windows exe.
+build = ["pyinstaller>=6", "pillow>=10"]
 
 [project.scripts]
-eo-stt = "eo_stt.__main__:main"
-eo-stt-cli = "eo_stt.cli:main"
+eo-srt = "eo_srt.__main__:main"
+eo-srt-cli = "eo_srt.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["eo_stt*"]
+include = ["eo_srt*"]
 
 [tool.setuptools.dynamic]
-version = {attr = "eo_stt.__version__"}
+version = {attr = "eo_srt.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

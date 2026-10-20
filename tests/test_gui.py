@@ -14,8 +14,8 @@ from unittest import mock
 
 import pytest
 
-import eo_stt.gui as gui
-from eo_stt import __version__
+import eo_srt.gui as gui
+from eo_srt import __version__
 
 
 def _display_available() -> bool:
@@ -307,7 +307,7 @@ def test_run_failure_stops_animation_and_reports(tmp_path, monkeypatch):
 def test_about_text_mentions_version_repo_and_licenses():
     text = gui.ABOUT_TEXT
     assert f"v{__version__}" in text
-    assert "https://github.com/BitsAndDopamine/Esperanto-STT" in text
+    assert "https://github.com/BitsAndDopamine/Esperanto-SRT" in text
     assert "CC0 1.0" in text    # license of the code
     assert "CC-BY-4.0" in text  # license of the bundled model
 
@@ -320,7 +320,7 @@ def test_about_window_opens():
         app.update()
         windows = [w for w in app.winfo_children() if isinstance(w, gui.AboutWindow)]
         assert len(windows) == 1
-        assert windows[0].title() == "pri eo-stt"
+        assert windows[0].title() == "pri eo-srt"
         windows[0].destroy()
     finally:
         app.destroy()
@@ -381,5 +381,27 @@ def test_srt_button_enabled_after_run(tmp_path, monkeypatch):
 
         # the run wrote the .srt; the worker events refreshed the button
         assert str(btn.cget("state")) == "normal"
+    finally:
+        app.destroy()
+
+
+# -- window/taskbar icon --------------------------------------------------------
+
+
+def test_icon_path_points_at_the_repo_png():
+    icon = gui._icon_path()
+    assert icon.name == gui.ICON_FILE
+    assert icon.is_file()
+
+
+@needs_display
+def test_window_and_taskbar_icon_is_set():
+    app = gui.App()
+    try:
+        # the icon PhotoImage was created from eo-srt.png and passed to
+        # iconphoto, which is the taskbar/dock icon too (_NET_WM_ICON on
+        # Linux, WM_SETICON on Windows) and defaults to all toplevels
+        # (pri/preview). Tk 9 cannot query iconphoto back, so check the image.
+        assert isinstance(getattr(app, "_icon_image", None), tk.PhotoImage)
     finally:
         app.destroy()
