@@ -7,7 +7,7 @@ Uses the INT8 ONNX export of NVIDIA's Esperanto Conformer-Transducer Large model
 
 Special thanks to all the contributors of the [Esperanto Dataset of the Common Voice Project](https://commonvoice.mozilla.org/eo) that made this possible. 
 
-<p align="center width="150px">
+<p align="center" width="200">
   <img src="eo-srt.png" />
 </p>
 
