@@ -1,8 +1,8 @@
-# esperanto-srt
-
 <p align="center">
   <img width="200" src="eo-srt.png" />
 </p>
+
+# esperanto-srt
 
 Esperanto speech-to-text: turn mp3 audio into `.srt` subtitle files, with a small desktop GUI. Runs on **Linux and Windows**, CPU-only, fully offline.
 
