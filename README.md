@@ -7,10 +7,9 @@ Uses the INT8 ONNX export of NVIDIA's Esperanto Conformer-Transducer Large model
 
 Special thanks to all the contributors of the [Esperanto Dataset of the Common Voice Project](https://commonvoice.mozilla.org/eo) that made this possible. 
 
-## Screenshots
-
-![esperanto-srt GUI](ekrankopio1.png)
-![srt preview window](ekrankopio1-srt.png)
+<p align="center width="33%">
+  <img src="eo-srt.png" />
+</p>
 
 ##  Downloads
 
@@ -20,6 +19,13 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 | [eo-srt-v1.0-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
 
 At least 10 GB of RAM recommended.
+
+## Screenshots
+
+![esperanto-srt GUI](ekrankopio1.png)
+![srt preview window](ekrankopio1-srt.png)
+
+
 
 ## Install
 
