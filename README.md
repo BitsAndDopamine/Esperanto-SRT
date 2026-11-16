@@ -4,7 +4,7 @@
 
 # esperanto-srt
 
-Esperanto speech-to-text: turn mp3 audio into `.srt` subtitle files, with a small desktop GUI. Runs on **Linux and Windows**, CPU-only, fully offline.
+Esperanto speech-to-text: turn mp3 audio into `.srt` subtitle files, with a small desktop GUI. Runs on **Linux, Windows and macOS**, CPU-only, fully offline.
 
 Uses the INT8 ONNX export of NVIDIA's Esperanto Conformer-Transducer Large model ([OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx](https://huggingface.co/OpenVoiceOS/nvidia-eo-conformer-transducer-large-onnx), converted from `nvidia/stt_eo_conformer_transducer_large`, license CC-BY-4.0) via [onnx-asr](https://github.com/istupakov/onnx-asr) + ONNX Runtime. No PyTorch, NeMo or CUDA involved.
 
@@ -16,8 +16,18 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 |---|---|
 | [eo-srt-v1.0-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-linux.tar.gz) | Linux (x86_64) |
 | [eo-srt-v1.0-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
+| [eo-srt-v1.0-macos.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-macos.tar.gz) | macOS (Apple Silicon, arm64) — contains `eo-srt.app` |
+| [eo-srt-v1.0-macos-intel.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-macos-intel.tar.gz) | macOS (Intel, x86_64) — contains `eo-srt.app` |
 
 At least 10 GB of RAM recommended.
+
+**macOS note:** extract the tar.gz and **double-click `eo-srt.app`** to open the GUI (the file dialogs are the native macOS ones). The release is ad-hoc signed but not notarized (no Apple Developer account), so Gatekeeper may warn on the first start — either right-click `eo-srt.app` and choose **Open**, or remove the download quarantine once:
+
+```bash
+xattr -dr com.apple.quarantine eo-srt.app
+```
+
+For the CLI, run the binary inside the bundle from a Terminal: `./eo-srt.app/Contents/MacOS/eo-srt-v1.0-macos episode.mp3 -o out/`
 
 ## Screenshots
 
@@ -78,13 +88,13 @@ Build a self-contained app with PyInstaller — no Python needed on the target m
 .venv/bin/python build.py          # -> dist/eo-srt/ (folder, ~250-350 MB)
 ```
 
-- The executable inside is **named with the version**: `eo-srt-v1.0-linux` (Linux) / `eo-srt-v1.0.exe` (Windows). The version comes from `eo_srt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there, the "pri" window shows it, and the executable is named after it); override it with `build.py --version v1.0.1`. On Linux the name ends in `-linux`, **not** in a digit: a name like `eo-srt-v1.1` ends in `.1`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
+- The executable inside is **named with the version**: `eo-srt-v1.0-linux` (Linux) / `eo-srt-v1.0.exe` (Windows) / `eo-srt-v1.0-macos` (macOS, inside `eo-srt.app/Contents/MacOS/`). The version comes from `eo_srt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there, the "pri" window shows it, and the executable is named after it); override it with `build.py --version v1.0.1`. On Linux the name ends in `-linux` (macOS: `-macos`), **not** in a digit: a name like `eo-srt-v1.1` ends in `.1`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
 - The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-srt-v1.0-linux fremdulo.mp3 -o out/`.
-- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux (`tar.gz`) and Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). To cut a release: **bump `__version__` in `eo_srt/__init__.py` first** (it is the single source — the "pri" window, the executable name and the archive names all follow it), commit, then tag and push: `git tag v1.0 && git push origin master v1.0`. CI fails the build when the tag and `__version__` disagree, so the versions can never drift apart.
-- The release archives contain the bundle's files **directly** — the versioned executable, `_internal/` and `model/` sit at the archive root; there is no top-level folder to open after extracting.
+- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux and macOS (`tar.gz`) plus Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). The macOS builds run on GitHub's hosted runners — `macos-latest` (Apple Silicon) and `macos-26-intel` (Intel) — so cutting a Mac release needs no Mac, and each produces a double-clickable `eo-srt.app` bundle. To cut a release: **bump `__version__` in `eo_srt/__init__.py` first** (it is the single source — the "pri" window, the executable name and the archive names all follow it), commit, then tag and push: `git tag v1.0 && git push origin master v1.0`. CI fails the build when the tag and `__version__` disagree, so the versions can never drift apart.
+- The release archives contain no top-level folder to open first after extracting: on Linux/Windows the bundle's files sit at the archive root (versioned executable, `_internal/`, `model/`); on macOS the archive root is **`eo-srt.app`** itself (the runtime, the model in `Contents/Resources/` and the icon all live inside the bundle).
 - The bundle is **CPU-only ONNX Runtime** (no CUDA); inference is ~10-15x realtime on a CPU.
 - The INT8 model (~142 MB) **is bundled** in `dist/eo-srt/model/`, beside the executable. Nothing is downloaded at runtime — the app works fully offline, including on a fresh Windows machine without Python.
-- The app icon (`eo-srt.png`) is **embedded in the Windows executable** and shown in the **window/taskbar** on every OS (on Linux the taskbar/dock reads it from the running window).
+- The app icon (`eo-srt.png`) is **embedded in the Windows executable**, converted to `.icns` for the **macOS `eo-srt.app`** (Finder + Dock icon), and shown in the **window/taskbar** on every OS (on Linux it comes from the running window).
 - The model files are fetched at build time by `fetch_model.py` (pinned Hugging Face commit, sha256-verified) into `models/` (gitignored; never committed — the encoder file is too large for git).
 - Point the app at a different model directory with the `EO_SRT_MODEL_DIR` environment variable (or `--model MODEL_DIR` on the CLI).
 

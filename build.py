@@ -14,20 +14,32 @@ What the bundle contains:
   as data, where the GUI shows it in the window/taskbar on every OS.
 
 The executable inside dist/eo-srt/ is renamed to carry the version:
-eo-srt-v1.0-linux (Linux) / eo-srt-v1.0.exe (Windows). The version label
-defaults to v<eo_srt.__version__> — the single source of the version (the
-GUI's "pri" window shows it too); CI builds with the package version and
-checks that the release tag matches it. Renaming is safe: a PyInstaller
-onedir executable locates its _internal/ folder and the model/ directory
-relative to its own path, not its name.
+eo-srt-v1.0-linux (Linux) / eo-srt-v1.0.exe (Windows) / eo-srt-v1.0-macos
+(macOS). The version label defaults to v<eo_srt.__version__> — the single
+source of the version (the GUI's "pri" window shows it too); CI builds with
+the package version and checks that the release tag matches it. Renaming is
+safe: a PyInstaller onedir executable locates its _internal/ folder and the
+model/ directory relative to its own path, not its name.
 
-Why "-linux" and not just "eo-srt-v1.1": a Linux file name ending in a
-single digit after a dot ("*.1".."*.9") is classified as a man page
+Why "-linux"/"-macos" and not just "eo-srt-v1.1": a Linux file name ending
+in a single digit after a dot ("*.1".."*.9") is classified as a man page
 (application/x-troff-man, a text type) by the shared MIME database — file
 managers then open the binary in a text editor on double-click instead of
-running it (the executable bit is unaffected). The "-linux" suffix keeps
-the version in the name without that suffix. Windows uses the ".exe"
+running it (the executable bit is unaffected). The "-linux"/"-macos" suffix
+keeps the version in the name without that suffix. Windows uses the ".exe"
 extension and has no such rule.
+
+macOS builds additionally a double-clickable app bundle: dist/eo-srt.app
+(BUNDLE in the generated spec). The versioned executable lives at
+eo-srt.app/Contents/MacOS/eo-srt-v<version>-macos and doubles as the CLI
+when run from a Terminal; the INT8 model and the icon ship as data inside
+the bundle (Contents/Resources, cross-linked into Contents/Frameworks =
+sys._MEIPASS, where eo_srt.model/gui look them up). PyInstaller ad-hoc
+signs the whole bundle (codesign --deep) during assembly; the release is
+not notarized (no Apple Developer account), so users remove the download
+quarantine once (xattr -dr com.apple.quarantine eo-srt.app) or right-click
+-> Open. The plain onedir folder is only an intermediate on macOS and is
+deleted after the build; the .app is the shipped artifact.
 
 PyInstaller cannot cross-compile: run this once per target OS (Linux, Windows,
 macOS). .github/workflows/build.yml does exactly that in CI, and packs the
@@ -63,6 +75,25 @@ COLLECT_ALL = [
 
 # dist metadata read via importlib.metadata at import time
 COPY_METADATA = ["onnx-asr", "onnxruntime", "customtkinter"]
+
+# macOS app bundle (BUNDLE is a no-op on other platforms, so this block is only
+# emitted when building on darwin). BUNDLE ad-hoc signs the whole .app bundle
+# (codesign --deep) during assembly and converts the PNG icon to .icns via
+# Pillow (in the "build" extra). Data files (model, icon) land in
+# Contents/Resources and are cross-linked into Contents/Frameworks, which is
+# sys._MEIPASS in app-bundle mode — eo_srt.model.default_model_dir and
+# gui._icon_path find them there unchanged.
+BUNDLE_IDENTIFIER = "io.github.bitsanddopamine.esperanto-srt"
+BUNDLE_BLOCK = """
+# macOS only: the double-clickable app bundle, built from the onedir collection.
+app = BUNDLE(
+    coll,
+    name={app_name!r},
+    icon={app_icon!r},  # PNG, converted to .icns by PyInstaller (Pillow)
+    bundle_identifier={bundle_identifier!r},
+    version={version!r},  # CFBundleShortVersionString, from eo_srt.__version__
+)
+"""
 
 # Not used at runtime. Do NOT exclude stdlib test modules (unittest/pydoc):
 # numpy.testing imports unittest and the frozen app crashed without it.
@@ -102,6 +133,7 @@ for dist in {copy_metadata!r}:
 
 # the app icon, bundled at the bundle root (the GUI finds it via _MEIPASS)
 datas.append(({icon_png!r}, '.'))
+{model_datas}
 
 a = Analysis(
     [{main_py!r}],
@@ -134,13 +166,13 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name={name!r},
+    name={exe_name!r},  # macOS: the versioned name, so CFBundleExecutable stays correct
     icon={icon!r},  # Windows: embedded into the exe (PNG converted to .ico); None elsewhere
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
     upx=False,
-    console=True,
+    console={console},  # macOS .app: windowed (Dock icon + menu bar); the CLI still works from a Terminal
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -156,6 +188,7 @@ coll = COLLECT(
     upx_exclude=[],
     name={name!r},
 )
+{bundle_block}
 """
 
 
@@ -208,6 +241,25 @@ def main() -> int:
         print(f"Icon file missing: {ICON_PNG}", file=sys.stderr)
         return 1
 
+    is_darwin = sys.platform.startswith("darwin")
+    # macOS: the versioned name goes into the spec's EXE directly, so that
+    # CFBundleExecutable in the .app's Info.plist matches the binary inside
+    # Contents/MacOS (renaming it after the build would break launching).
+    exe_name = versioned_exe_name(args.name, args.version) if is_darwin else args.name
+    model_datas = ""
+    bundle_block = ""
+    if is_darwin:
+        # the model ships inside the .app as data (Contents/Resources/model,
+        # cross-linked to Contents/Frameworks/model = _MEIPASS/model) instead
+        # of beside the executable
+        model_datas = f"datas.append(({str(MODEL_DIR)!r}, 'model'))"
+        bundle_block = BUNDLE_BLOCK.format(
+            app_name=f"{args.name}.app",
+            app_icon=str(ICON_PNG),
+            bundle_identifier=BUNDLE_IDENTIFIER,
+            version=__version__,
+        )
+
     spec_path = ROOT / f"{args.name}.spec"
     spec_path.write_text(
         SPEC_TEMPLATE.format(
@@ -217,6 +269,10 @@ def main() -> int:
             main_py=str(ROOT / "main.py"),
             root=str(ROOT),
             name=args.name,
+            exe_name=exe_name,
+            console=not is_darwin,
+            model_datas=model_datas,
+            bundle_block=bundle_block,
             icon=exe_icon(),
             icon_png=str(ICON_PNG),
         ),
@@ -234,6 +290,27 @@ def main() -> int:
     subprocess.run(cmd, check=True)
 
     bundle_dir = ROOT / "dist" / args.name
+
+    if is_darwin:
+        # the onedir folder is only an intermediate on macOS; the .app bundle
+        # (with the model inside Contents/Resources) is the shipped artifact
+        app_dir = ROOT / "dist" / f"{args.name}.app"
+        exe_in_app = app_dir / "Contents" / "MacOS" / exe_name
+        if not exe_in_app.is_file():
+            print(f"expected .app executable not found: {exe_in_app}", file=sys.stderr)
+            return 1
+        if not (app_dir / "Contents" / "Resources" / "model" / "config.json").is_file():
+            print(f"model missing inside the .app: {app_dir / 'Contents' / 'Resources' / 'model'}",
+                  file=sys.stderr)
+            return 1
+        if bundle_dir.exists():
+            shutil.rmtree(bundle_dir)
+        total = sum(f.stat().st_size for f in app_dir.rglob("*") if f.is_file() and not f.is_symlink())
+        print(f"\nBuild finished -> {app_dir}")
+        print(f"GUI: open {app_dir}  (or double-click eo-srt.app in Finder)")
+        print(f"CLI: {exe_in_app} FILE.mp3 -o OUT_DIR")
+        print(f"Installed size: {total / 1e6:.1f} MB")
+        return 0
 
     # rename the executable to carry the version (see versioned_exe_name). A
     # PyInstaller onedir executable finds _internal/ and model/ relative to

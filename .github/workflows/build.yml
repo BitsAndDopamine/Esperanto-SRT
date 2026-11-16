@@ -39,6 +39,15 @@ jobs:
             label: linux
           - os: windows-latest
             label: windows
+          # macOS builds run on Apple's hosted runners — no Mac needed.
+          # macos-latest is Apple Silicon (arm64); macos-26-intel covers
+          # Intel Macs (x86_64). Both produce dist/eo-srt.app (a
+          # double-clickable bundle) with the exe named
+          # eo-srt-v<version>-macos inside Contents/MacOS/.
+          - os: macos-latest
+            label: macos
+          - os: macos-26-intel
+            label: macos-intel
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +88,7 @@ jobs:
         run: python fetch_model.py
 
       # The executable is named with the package version (eo-srt-v1.0-linux /
-      # eo-srt-v1.0.exe): eo_srt.__version__ is the single source of the
+      # eo-srt-v1.0.exe / eo-srt-v1.0-macos): eo_srt.__version__ is the single source of the
       # version (the GUI's "pri" window shows it too), and the check above
       # guarantees the release tag agrees with it.
       - name: Build with PyInstaller
@@ -88,22 +97,34 @@ jobs:
       # The built executable must actually start. Regression guard: a bundled
       # ucrtbase.dll once made the Windows exe die in the PyInstaller bootloader
       # ("Failed to load Python DLL") before any Python code ran — building
-      # successfully does not prove the artifact works.
+      # successfully does not prove the artifact works. The glob locates the
+      # exe because build.py names it from eo_srt.__version__, not from the git
+      # ref — on a workflow_dispatch run from a branch the ref name would not
+      # match. On macOS this runs the .app bundle's binary with --help (the CLI
+      # path, which needs no display); PyInstaller ad-hoc signs the .app bundle
+      # (codesign --deep) during the build.
       - name: Smoke-test the executable
-        if: matrix.label == 'linux'
-        run: dist/eo-srt/eo-srt-${{ github.ref_name }}-linux --help
-
-      - name: Smoke-test the executable
-        if: matrix.label == 'windows'
-        run: dist\eo-srt\eo-srt-${{ github.ref_name }}.exe --help
-
-      # The archives contain the bundle's files directly (the versioned
-      # executable, _internal/ and model/ at the archive root) — no top-level
-      # eo-srt/ folder to open first after extracting.
-      - name: Pack the bundle (tar.gz)
-        if: matrix.label == 'linux'
         shell: bash
-        run: tar -czf "dist/eo-srt-${{ github.ref_name }}-linux.tar.gz" -C dist/eo-srt .
+        run: |
+          case "${{ matrix.label }}" in
+            windows) dist/eo-srt/eo-srt-*.exe --help ;;
+            macos*)  dist/eo-srt.app/Contents/MacOS/eo-srt-* --help ;;
+            *)       dist/eo-srt/eo-srt-* --help ;;
+          esac
+
+      # Linux archives contain the onedir bundle's files directly (the
+      # versioned executable, _internal/ and model/ at the archive root); the
+      # macOS archives contain eo-srt.app at the archive root — double-clickable
+      # after extracting. No top-level folder to open first in either case.
+      - name: Pack the bundle (tar.gz)
+        if: matrix.label != 'windows'
+        shell: bash
+        run: |
+          if [[ "${{ matrix.label }}" == macos* ]]; then
+            tar -czf "dist/eo-srt-${{ github.ref_name }}-${{ matrix.label }}.tar.gz" -C dist eo-srt.app
+          else
+            tar -czf "dist/eo-srt-${{ github.ref_name }}-${{ matrix.label }}.tar.gz" -C dist/eo-srt .
+          fi
 
       - name: Zip the bundle
         if: matrix.label == 'windows'

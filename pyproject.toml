@@ -8,7 +8,7 @@ name = "eo-srt"
 # (the GUI's "pri" window and build.py's executable name both read it from
 # there, so the package metadata, the app and the exe can never drift apart).
 dynamic = ["version"]
-description = "Esperanto speech-to-text: mp3 audio to .srt subtitles, with a GUI (Linux/Windows)"
+description = "Esperanto speech-to-text: mp3 audio to .srt subtitles, with a GUI (Linux/Windows/macOS)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
