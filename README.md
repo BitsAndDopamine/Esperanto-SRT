@@ -14,10 +14,10 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 
 | Artifact | Platform |
 |---|---|
-| [eo-srt-v1.0-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-linux.tar.gz) | Linux (x86_64) |
-| [eo-srt-v1.0-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
-| [eo-srt-v1.0-macos.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-macos.tar.gz) | macOS (Apple Silicon, arm64) — contains `eo-srt.app` |
-| [eo-srt-v1.0-macos-intel.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.0/eo-srt-v1.0-macos-intel.tar.gz) | macOS (Intel, x86_64) — contains `eo-srt.app` |
+| [eo-srt-v1.1-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-linux.tar.gz) | Linux (x86_64) |
+| [eo-srt-v1.1-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
+| [eo-srt-v1.1-macos.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos.tar.gz) | macOS (Apple Silicon, arm64) — contains `eo-srt.app` |
+| [eo-srt-v1.1-macos-intel.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos-intel.tar.gz) | macOS (Intel, x86_64) — contains `eo-srt.app` |
 
 At least 10 GB of RAM recommended.
 
@@ -27,7 +27,7 @@ At least 10 GB of RAM recommended.
 xattr -dr com.apple.quarantine eo-srt.app
 ```
 
-For the CLI, run the binary inside the bundle from a Terminal: `./eo-srt.app/Contents/MacOS/eo-srt-v1.0-macos episode.mp3 -o out/`
+For the CLI, run the binary inside the bundle from a Terminal: `./eo-srt.app/Contents/MacOS/eo-srt-v1.1-macos episode.mp3 -o out/`
 
 ## Screenshots
 
@@ -88,9 +88,9 @@ Build a self-contained app with PyInstaller — no Python needed on the target m
 .venv/bin/python build.py          # -> dist/eo-srt/ (folder, ~250-350 MB)
 ```
 
-- The executable inside is **named with the version**: `eo-srt-v1.0-linux` (Linux) / `eo-srt-v1.0.exe` (Windows) / `eo-srt-v1.0-macos` (macOS, inside `eo-srt.app/Contents/MacOS/`). The version comes from `eo_srt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there, the "pri" window shows it, and the executable is named after it); override it with `build.py --version v1.0.1`. On Linux the name ends in `-linux` (macOS: `-macos`), **not** in a digit: a name like `eo-srt-v1.1` ends in `.1`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
-- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-srt-v1.0-linux fremdulo.mp3 -o out/`.
-- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux and macOS (`tar.gz`) plus Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). The macOS builds run on GitHub's hosted runners — `macos-latest` (Apple Silicon) and `macos-26-intel` (Intel) — so cutting a Mac release needs no Mac, and each produces a double-clickable `eo-srt.app` bundle. To cut a release: **bump `__version__` in `eo_srt/__init__.py` first** (it is the single source — the "pri" window, the executable name and the archive names all follow it), commit, then tag and push: `git tag v1.0 && git push origin master v1.0`. CI fails the build when the tag and `__version__` disagree, so the versions can never drift apart.
+- The executable inside is **named with the version**: `eo-srt-v1.1-linux` (Linux) / `eo-srt-v1.1.exe` (Windows) / `eo-srt-v1.1-macos` (macOS, inside `eo-srt.app/Contents/MacOS/`). The version comes from `eo_srt/__init__.py` (`__version__`, the single source — `pyproject.toml` reads it from there, the "pri" window shows it, and the executable is named after it); override it with `build.py --version v1.1.1`. On Linux the name ends in `-linux` (macOS: `-macos`), **not** in a digit: a name like `eo-srt-v1.1` ends in `.1`, which Linux's shared MIME database classifies as a man page (`*.1`–`*.9` glob) — a text file — so file managers would open the binary in a text editor on double-click instead of running it.
+- The executable with **no arguments opens the GUI**; with arguments it works as the CLI: `eo-srt-v1.1-linux fremdulo.mp3 -o out/`.
+- PyInstaller **cannot cross-compile** — build once per OS. CI builds Linux and macOS (`tar.gz`) plus Windows (`zip`) artifacts on every `v*` tag and attaches them to a GitHub release (`.github/workflows/build.yml`). The macOS builds run on GitHub's hosted runners — `macos-latest` (Apple Silicon) and `macos-26-intel` (Intel) — so cutting a Mac release needs no Mac, and each produces a double-clickable `eo-srt.app` bundle. To cut a release: **bump `__version__` in `eo_srt/__init__.py` first** (it is the single source — the "pri" window, the executable name and the archive names all follow it), commit, then tag and push: `git tag v1.1 && git push origin master v1.1`. CI fails the build when the tag and `__version__` disagree, so the versions can never drift apart.
 - The release archives contain no top-level folder to open first after extracting: on Linux/Windows the bundle's files sit at the archive root (versioned executable, `_internal/`, `model/`); on macOS the archive root is **`eo-srt.app`** itself (the runtime, the model in `Contents/Resources/` and the icon all live inside the bundle).
 - The bundle is **CPU-only ONNX Runtime** (no CUDA); inference is ~10-15x realtime on a CPU.
 - The INT8 model (~142 MB) **is bundled** in `dist/eo-srt/model/`, beside the executable. Nothing is downloaded at runtime — the app works fully offline, including on a fresh Windows machine without Python.
@@ -124,15 +124,15 @@ PyInstaller cannot cross-compile, so the Windows build runs **on a Windows machi
    .venv\Scripts\python.exe build.py
    ```
 
-   Result: `dist\eo-srt\` (~300 MB) containing `eo-srt-v1.0.exe`, the `_internal\` runtime folder, and the model in `dist\eo-srt\model\`. A build takes a couple of minutes plus the model download.
-6. **Test on a clean machine**: copy the `dist\eo-srt` folder to a PC without Python. Double-click `eo-srt-v1.0.exe` for the GUI, or run `eo-srt-v1.0.exe episode.mp3 -o out\` for the CLI. No internet needed.
+   Result: `dist\eo-srt\` (~300 MB) containing `eo-srt-v1.1.exe`, the `_internal\` runtime folder, and the model in `dist\eo-srt\model\`. A build takes a couple of minutes plus the model download.
+6. **Test on a clean machine**: copy the `dist\eo-srt` folder to a PC without Python. Double-click `eo-srt-v1.1.exe` for the GUI, or run `eo-srt-v1.1.exe episode.mp3 -o out\` for the CLI. No internet needed.
 7. **Distribute**: zip the folder's *contents* (PowerShell), so the zip has no top-level folder:
 
    ```powershell
-   Compress-Archive -Path dist\eo-srt\* -DestinationPath dist\eo-srt-v1.0-windows.zip
+   Compress-Archive -Path dist\eo-srt\* -DestinationPath dist\eo-srt-v1.1-windows.zip
    ```
 
-   The zip is ~160 MB and contains `eo-srt-v1.0.exe`, `_internal\` and `model\` directly at its root.
+   The zip is ~160 MB and contains `eo-srt-v1.1.exe`, `_internal\` and `model\` directly at its root.
 
 Notes:
 
