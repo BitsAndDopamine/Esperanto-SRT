@@ -16,8 +16,8 @@ Special thanks to all the contributors of the [Esperanto Dataset of the Common V
 |---|---|
 | [eo-srt-v1.1-linux.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-linux.tar.gz) | Linux (x86_64) |
 | [eo-srt-v1.1-windows.zip](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-windows.zip) | Windows (x64) tested on Windows 11, often blocked by antivirus at first start |
-| [eo-srt-v1.1-macos.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos.tar.gz) | macOS (Apple Silicon, arm64) — contains `eo-srt.app` |
-| [eo-srt-v1.1-macos-intel.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos-intel.tar.gz) | macOS (Intel, x86_64) — contains `eo-srt.app` |
+| [eo-srt-v1.1-macos.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos.tar.gz) | macOS (Apple Silicon, arm64) untested, right-click `eo-srt.app` and choose **Open** |
+| [eo-srt-v1.1-macos-intel.tar.gz](https://github.com/BitsAndDopamine/Esperanto-SRT/releases/download/v1.1/eo-srt-v1.1-macos-intel.tar.gz) | macOS (Intel, x86_64) untested,  right-click `eo-srt.app` and choose **Open** |
 
 At least 10 GB of RAM recommended.
 
